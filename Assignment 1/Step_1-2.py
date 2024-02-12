@@ -9,7 +9,8 @@ class Network:
 
     #Dictionary for wind farms
     p_W_data = {}
-
+    cwd = os.getcwd()
+    #commet
     #For loop to collect wind_data
     for i in range(1,7):
         df = pd.read_csv('wind_data/wind '+str(i)+'.out')
