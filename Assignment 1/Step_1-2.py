@@ -83,7 +83,7 @@ class expando(object):
     pass
 
 class EconomicDispatch(Network):
-    
+     
     def __init__(self, n_samples): # initialize class
         super().__init__(n_samples=n_samples)
         
@@ -107,7 +107,7 @@ class EconomicDispatch(Network):
         objective = demand_utility - generator_costs
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
         
-        # initialize constraints 
+        # initialize constraints
         self.constraints.balance_constraint = self.model.addConstr(
                 gb.quicksum(self.variables.generator_dispatch[g] for g in self.GENERATORS),
                 gb.GRB.EQUAL,
