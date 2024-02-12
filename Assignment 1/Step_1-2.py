@@ -9,9 +9,14 @@ import pandas as pd
 
 class Network:
     # Example of reading data from excel, requires openpyxl
-    xls = pd.ExcelFile('Assignment 1\data.xlsx')
-    df1 = pd.read_excel(xls, 'gen_technical')
-    df2 = pd.read_excel(xls, 'gen_cost')
+    xls = pd.ExcelFile('data.xlsx')
+    gen_tech = pd.read_excel(xls, 'gen_technical')
+    gen_econ = pd.read_excel(xls, 'gen_cost')
+    system_demand = pd.read_excel(xls, 'demand')
+    line_info = pd.read_excel(xls, 'transmission_lines')
+    load_info = pd.read_excel(xls, 'demand_nodes')
+    wind_tech = pd.read_excel(xls, 'wind_technical')
+    wind_profiles = pd.read_csv('wind_profiles.csv')
 
     #Wind farm maximum
     p_W_max = 300 # MW
