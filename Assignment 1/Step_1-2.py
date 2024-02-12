@@ -44,7 +44,7 @@ class Network:
     P_D = {} # Distribution of system demands
     for t, key in enumerate(TIMES):
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
-    U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price
+    U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
 
     ## Wind Turbine Information
     p_W_cap = 200 # Wind farm capcities (MW)
@@ -78,8 +78,8 @@ class EconomicDispatch(Network):
         self.model = gb.Model(name='Economic Dispatch')
         
         # initialize variables 
-        self.variables.consumption = {d:self.model.addVar(lb=0,ub=self.P_D[d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS}
-        self.variables.generator_dispatch = {g:self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS} 
+        self.variables.consumption = {d : self.model.addVar(lb=0,ub=self.P_D[d], name='consumption of demand {0}'.format(d)) for d in self.DEMANDS}
+        self.variables.generator_dispatch = {g : self.model.addVar(lb=0,ub=self.P_G_max[g], name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS} 
         
         # initialize objective to maximize social welfare
         demand_utility = gb.quicksum(self.u[d] * self.variables.consumption[d] for d in self.DEMANDS)
@@ -98,10 +98,10 @@ class EconomicDispatch(Network):
         self.data.objective_value = self.model.ObjVal
         
         # save consumption values 
-        self.data.consumption_values = {d:self.variables.consumption[d].x for d in self.DEMANDS}
+        self.data.consumption_values = {d : self.variables.consumption[d].x for d in self.DEMANDS}
         
         # save generator dispatches 
-        self.data.generator_dispatch_values = {g:self.variables.generator_dispatch[g].x for g in self.GENERATORS}
+        self.data.generator_dispatch_values = {g : self.variables.generator_dispatch[g].x for g in self.GENERATORS}
         
         # save uniform prices lambda 
         self.data.lambda_ = self.constraints.balance_constraint.Pi
@@ -125,10 +125,10 @@ class EconomicDispatch(Network):
 
     def calculate_results(self):
         # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
-        self.results.profits = {g:(self.c[g] - self.data.lambda_) * self.data.generator_dispatch_values[g] for g in self.GENERATORS}
+        self.results.profits = {g : (self.c[g] - self.data.lambda_) * self.data.generator_dispatch_values[g] for g in self.GENERATORS}
         
         # calculate utility of suppliers ( (U_D - lambda) * p_D )
-        self.results.utilities = {d:(self.u[d] - self.data.lambda_) * self.data.consumption_values[d] for d in self.DEMANDS}
+        self.results.utilities = {d : (self.u[d] - self.data.lambda_) * self.data.consumption_values[d] for d in self.DEMANDS}
         
         self._display_results()
         
