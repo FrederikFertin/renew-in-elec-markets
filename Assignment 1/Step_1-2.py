@@ -43,6 +43,8 @@ class Network:
     for t, key in enumerate(TIMES):
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
 
+    U_D = dict(zip(DEMANDS, load_info['bid_price']))
+
     # Wind Turbine Production
     p_W_max = 200 # Wind farm maximum (MW)
     WT = ['V{0}'.format(v) for v in wind_tech['Profile']]
