@@ -4,7 +4,20 @@ import numpy as np
 import pandas as pd
 
 
+
+
+
 class Network:
+    # Example of reading data from excel, requires openpyxl
+    xls = pd.ExcelFile('data.xlsx')
+    gen_tech = pd.read_excel(xls, 'gen_technical')
+    gen_econ = pd.read_excel(xls, 'gen_cost')
+    system_demand = pd.read_excel(xls, 'demand')
+    line_info = pd.read_excel(xls, 'transmission_lines')
+    load_info = pd.read_excel(xls, 'demand_nodes')
+    wind_tech = pd.read_excel(xls, 'wind_technical')
+    wind_profiles = pd.read_csv('wind_profiles.csv')
+
     #Wind farm maximum
     p_W_max = 300 # MW
 
@@ -13,9 +26,9 @@ class Network:
 
     #commet
     #For loop to collect wind_data
-    #for i in range(1,7):
-    #    df = pd.read_csv('wind_data/wind '+str(i)+'.out')
-    #    p_W_data['W'+str(i)] = df['V1'].values[:24] * p_W_max
+    # for i in range(1,7):
+    #     df = pd.read_csv('wind_data/wind '+str(i)+'.out')
+    #     p_W_data['W'+str(i)] = df['V1'].values[:24] * p_W_max
 
     #List of Generators, Nodes, Windfarm and Batteries
     GENERATORS = ['G1','G2','G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12']
@@ -36,6 +49,7 @@ class Network:
 
     # Number of Hours
     TIMES = ['T{0}'.format(t) for t in range(1, 25)]
+    TIMES = ['T1']
 
     # Offer prices indexed by generator
     c = {'G1':13.32,'G2':13.32,'G3':20.7,'G4':20.93,'G5':26.11,'G6':10.52,
@@ -86,8 +100,8 @@ class expando(object):
 
 class EconomicDispatch(Network):
     
-    def __init__(self, n_samples): # initialize class
-        super().__init__(n_samples=n_samples)
+    def __init__(self): # initialize class
+        # super().__init__(n_samples=n_samples)
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
@@ -109,7 +123,7 @@ class EconomicDispatch(Network):
         objective = demand_utility - generator_costs
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
         
-        # initialize constraints 
+        # initialize constraints
         self.constraints.balance_constraint = self.model.addConstr(
                 gb.quicksum(self.variables.generator_dispatch[g] for g in self.GENERATORS),
                 gb.GRB.EQUAL,
@@ -119,39 +133,46 @@ class EconomicDispatch(Network):
         # save objective value
         self.data.objective_value = self.model.ObjVal
         
+        # save consumption values 
+        self.data.consumption_values = {d:self.variables.consumption[d].x for d in self.DEMANDS}
+        
         # save generator dispatches 
         self.data.generator_dispatch_values = {g:self.variables.generator_dispatch[g].x for g in self.GENERATORS}
         
         # save uniform prices lambda 
-        self.data.lambda_ = {t:self.constraints.balance_constraint[t].Pi for t in self.TIMES}
+        self.data.lambda_ = self.constraints.balance_constraint.Pi
         
     def run(self):
         self.model.optimize()
         self._save_data()
 
-    def _display_results(self, t):
-        print("Market clearing price: " + str(np.round(self.data.lambda_[t], decimals=2)))
+    def _display_results(self):
         print()
-        print("Social welfare: " + str())
+        print("-------------------   RESULTS  -------------------")
+        print("Market clearing price: " + str(np.round(self.data.lambda_, decimals=2)))
+        print()
+        print("Social welfare: " + str(self.data.objective_value))
         print()
         print("Profit of suppliers: ")
+        print(self.results.profits)
         print()
         print("Utility of demands: ")
+        print(self.results.utilities)
 
-    def calculate_results(self, t):
+    def calculate_results(self):
         # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
-        self.results.profits = {g:(self.c[g] - self.data.lambda_[t]) * self.data.generator_dispatch_values[g] for g in self.GENERATORS}
+        self.results.profits = {g:(self.c[g] - self.data.lambda_) * self.data.generator_dispatch_values[g] for g in self.GENERATORS}
         
         # calculate utility of suppliers ( (U_D - lambda) * p_D )
-        self.results.utilities = {d:(self.u[d] - self.data.lambda_[t]) * self.data.demand_values[d] for d in self.DEMANDS}
+        self.results.utilities = {d:(self.u[d] - self.data.lambda_) * self.data.consumption_values[d] for d in self.DEMANDS}
         
-        self._display_results(t)
+        self._display_results()
         
         
     
 if __name__ == "__main__":
     ec = EconomicDispatch()
-    ec.model.optimize()
+    ec.run()
     ec.calculate_results()
 
 
