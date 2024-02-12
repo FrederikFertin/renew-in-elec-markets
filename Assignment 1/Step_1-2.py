@@ -6,59 +6,56 @@ import pandas as pd
 
 
 
-
 class Network:
     # Example of reading data from excel, requires openpyxl
-    xls = pd.ExcelFile('data.xlsx')
+    xls = pd.ExcelFile('Assignment 1/data.xlsx')
     gen_tech = pd.read_excel(xls, 'gen_technical')
     gen_econ = pd.read_excel(xls, 'gen_cost')
     system_demand = pd.read_excel(xls, 'demand')
     line_info = pd.read_excel(xls, 'transmission_lines')
     load_info = pd.read_excel(xls, 'demand_nodes')
     wind_tech = pd.read_excel(xls, 'wind_technical')
-    wind_profiles = pd.read_csv('wind_profiles.csv')
+    wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
 
-    #Wind farm maximum
-    p_W_max = 300 # MW
-
-    #Dictionary for wind farms
-    p_W_data = {}
-
-    #For loop to collect wind_data
-    # for i in range(1,7):
-    #     df = pd.read_csv('wind_data/wind '+str(i)+'.out')
-    #     p_W_data['W'+str(i)] = df['V1'].values[:24] * p_W_max
+    # Number of each type of unit/identity
+    G = np.shape(gen_tech)[0]
+    D = np.shape(load_info)[0]
+    T = np.shape(system_demand)[0]
+    L = np.shape(line_info)[0]
+    W = np.shape(wind_tech)[0]
+    # N = 24 # Number of nodes in network
 
     #List of Generators, Nodes, Windfarm and Batteries
-    GENERATORS = ['G1','G2','G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12']
-    DEMANDS = ['D1']
-    # NODES = ['N1','N2','N3','N4','N5','N6','N7','N8','N9','N10','N11','N12','N13',
-    #          'N14','N15','N16','N17','N18','N19','N20','N21','N22','N23','N24']
-    # WIND = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6']
-    # BATTERY = ['B1','B2','B3']
+    GENERATORS = ['G{0}'.format(t) for t in range(1, G+1)]
+    DEMANDS = ['D{0}'.format(t) for t in range(1, D+1)]
+    LINES = ['L{0}'.format(t) for t in range(1, L+1)]
+    TIMES = ['T{0}'.format(t) for t in range(1, T+1)]
+    WINDTURBINES = ['W{0}'.format(t) for t in range(1, W+1)]
+    # NODES = ['N{0}'.format(t) for t in range(1, N)]
 
-    # # Number of nodes 
-    # N = len(NODES)
+    # Conventional Generator Information
+    P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
+    C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
+    
+    # Demand Information
+    P_D_sum = dict(zip(TIMES, system_demand['System_demand']))
+    P_D = {}
+    for t, key in enumerate(TIMES):
+        P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
 
-    # Number of generators 
-    G = len(GENERATORS)
-
-    # # Number of wind turbines 
-    # W = len(WIND)
-
-    # Number of Hours
-    TIMES = ['T{0}'.format(t) for t in range(1, 25)]
-    TIMES = ['T1']
-
-    # Offer prices indexed by generator
-    c = {'G1':13.32,'G2':13.32,'G3':20.7,'G4':20.93,'G5':26.11,'G6':10.52,
-         'G7':10.52,'G8':6.02,'G9':5.47,'G10':0,'G11':10.52,'G12':10.89}
+    # Wind Turbine Production
+    p_W_max = 200 # Wind farm maximum (MW)
+    WT = ['V{0}'.format(v) for v in wind_tech['Profile']]
+    chosen_wind_profiles = wind_profiles[WT] 
+    P_W = {}
+    for t, key in enumerate(TIMES):
+        P_W[key] = dict(zip(WINDTURBINES, chosen_wind_profiles.iloc[t,:] * p_W_max))
     
     # Bid prices indexed by demand
     u = {'D1':20}
 
     # System consumption indexed by time 
-    P_D_sum = {'T1': 1775.835,
+    P_D_sum = {'T1': {D1: 0.2*1775.835, D2: 0.8*1775.835},
       'T2': 2517.975,
       'T3': 1669.815,
       'T4': 2517.975,
