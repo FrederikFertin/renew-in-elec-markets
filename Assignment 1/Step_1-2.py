@@ -3,18 +3,19 @@ from gurobipy import GRB
 import numpy as np
 import pandas as pd
 
+
 class Network:
     #Wind farm maximum
     p_W_max = 300 # MW
 
     #Dictionary for wind farms
     p_W_data = {}
-    cwd = os.getcwd()
+
     #commet
     #For loop to collect wind_data
-    for i in range(1,7):
-        df = pd.read_csv('wind_data/wind '+str(i)+'.out')
-        p_W_data['W'+str(i)] = df['V1'].values[:24] * p_W_max
+    #for i in range(1,7):
+    #    df = pd.read_csv('wind_data/wind '+str(i)+'.out')
+    #    p_W_data['W'+str(i)] = df['V1'].values[:24] * p_W_max
 
     #List of Generators, Nodes, Windfarm and Batteries
     GENERATORS = ['G1','G2','G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12']
