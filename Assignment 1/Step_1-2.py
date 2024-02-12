@@ -3,7 +3,16 @@ from gurobipy import GRB
 import numpy as np
 import pandas as pd
 
+
+
+
+
 class Network:
+    # Example of reading data from excel, requires openpyxl
+    xls = pd.ExcelFile('Assignment 1\data.xlsx')
+    df1 = pd.read_excel(xls, 'gen_technical')
+    df2 = pd.read_excel(xls, 'gen_cost')
+
     #Wind farm maximum
     p_W_max = 300 # MW
 
