@@ -44,7 +44,7 @@ class Network:
     P_D = {} # Distribution of system demands
     for t, key in enumerate(TIMES):
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
-    U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
+    #U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
 
     ## Wind Turbine Information
     p_W_cap = 200 # Wind farm capcities (MW)
