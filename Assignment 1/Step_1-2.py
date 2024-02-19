@@ -231,7 +231,7 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=24, ramping=False, battery=True)
+    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True)
     ec.run()
     ec.calculate_results()
     ec.display_results()
