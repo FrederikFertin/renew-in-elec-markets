@@ -109,6 +109,8 @@ class EconomicDispatch(Network):
         self.TIMES = self.TIMES[:n_hours]
         self.ramping = ramping
         self.battery = battery
+        if not battery: 
+            self.BATTERIES = []
         self._build_model() # build gurobi model
     
     def _build_model(self):
@@ -124,6 +126,8 @@ class EconomicDispatch(Network):
             self.variables.battery_ch = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='dispatch of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
             self.variables.battery_dis = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='consumption of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
         
+        self.model.update()
+        
         # initialize objective to maximize social welfare
         demand_utility = gb.quicksum(self.U_D[d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
         generator_costs = gb.quicksum(self.C_G_offer[g] * self.variables.generator_dispatch[g,t] for g in self.GENERATORS for t in self.TIMES)
@@ -134,7 +138,9 @@ class EconomicDispatch(Network):
         self.constraints.balance_constraint = {t:self.model.addLConstr(
                 gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
                 - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES),
+                - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES)
+                - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                              for b in self.BATTERIES) if self.battery else 0,
                 gb.GRB.EQUAL,
                 0, name='Balance equation') for t in self.TIMES}
 
@@ -149,17 +155,17 @@ class EconomicDispatch(Network):
                 gb.GRB.LESS_EQUAL,
                 self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
         if self.battery:
-            self.constraints.batt_soc = {(b,t):self.model.addConstr(
+            self.constraints.batt_soc = {(b,t):self.model.addLConstr(
                 self.variables.battery_soc[b,t], 
+                gb.GRB.EQUAL,
+                self.variables.battery_soc[b,T[n]] + self.batt_eta[b] * self.variables.battery_ch[b,t] - 1/self.batt_eta[b] * self.variables.battery_dis[b,t])
+                for b in self.BATTERIES for n,t in enumerate(self.TIMES[1:])}
+            self.constraints.init_batt_soc = {(b):self.model.addLConstr(
+                self.variables.battery_soc[b,self.TIMES[0]], 
                 gb.GRB.EQUAL, 
-                self.variables.battery_soc[b,t-1] + self.batt_eta[b] * self.variables.battery_ch[b,t] - 1/self.batt_eta[b] * self.variables.battery_dis[b,t])
-                for b in self.BATTERIES for t in self.TIMES[1:]}
-            self.constraints.init_batt_soc = {(b):self.model.addConstr(
-                self.variables.battery_soc[b,0], 
-                gb.GRB.EQUAL, 
-                self.batt_init_soc[b] + self.batt_eta[b] * self.variables.battery_ch[b,0] - 1/self.batt_eta[b] * self.variables.battery_dis[b,0])
+                self.batt_init_soc[b] + self.batt_eta[b] * self.variables.battery_ch[b,self.TIMES[0]] - 1/self.batt_eta[b] * self.variables.battery_dis[b,self.TIMES[0]])
                 for b in self.BATTERIES}
-            self.constraints.final_batt_soc = {(b):self.model.addConstr(
+            self.constraints.final_batt_soc = {(b):self.model.addLConstr(
                 self.variables.battery_soc[b,self.TIMES[-1]],
                 gb.GRB.GREATER_EQUAL,
                 self.batt_init_soc[b])
@@ -178,6 +184,9 @@ class EconomicDispatch(Network):
         # save wind turbine dispatches 
         self.data.wind_dispatch_values = {(w,t):self.variables.wind_turbines[w,t].x for w in self.WINDTURBINES for t in self.TIMES}
         
+        # save battery dispatches 
+        self.data.battery = {(b,t):self.variables.battery_ch[b,t].x - self.variables.battery_dis[b,t].x for b in self.BATTERIES for t in self.TIMES}
+
         # save uniform prices lambda 
         self.data.lambda_ = {t:self.constraints.balance_constraint[t].Pi for t in self.TIMES}
         
@@ -211,7 +220,7 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=24, ramping=False)
+    ec = EconomicDispatch(n_hours=24, ramping=False, battery=0)
     ec.run()
     ec.calculate_results()
     ec.display_results()
