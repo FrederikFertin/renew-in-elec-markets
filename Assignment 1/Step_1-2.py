@@ -153,12 +153,12 @@ class EconomicDispatch(Network):
             self.constraints.batt_soc = {(b,t):self.model.addConstr(
                 self.variables.battery_soc[b,t], 
                 gb.GRB.EQUAL, 
-                self.variables.battery_soc[b,t-1] + batt_eta[b] * self.variables.battery_ch[b,t] - 1/batt_eta[b] * self.variables.battery_dis[b,t])
+                self.variables.battery_soc[b,t-1] + self.batt_eta[b] * self.variables.battery_ch[b,t] - 1/self.batt_eta[b] * self.variables.battery_dis[b,t])
                 for b in self.BATTERIES for t in self.TIMES[1:]}
             self.constraints.init_batt_soc = {(b):self.model.addConstr(
                 self.variables.battery_soc[b,0], 
                 gb.GRB.EQUAL, 
-                self.batt_init_soc[b] + batt_eta[b] * self.variables.battery_ch[b,0] - 1/batt_eta[b] * self.variables.battery_dis[b,0])
+                self.batt_init_soc[b] + self.batt_eta[b] * self.variables.battery_ch[b,0] - 1/self.batt_eta[b] * self.variables.battery_dis[b,0])
                 for b in self.BATTERIES}
             self.constraints.final_batt_soc = {(b):self.model.addConstr(
                 self.variables.battery_soc[b,self.TIMES[-1]],
