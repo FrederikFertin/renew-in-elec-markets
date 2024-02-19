@@ -135,14 +135,22 @@ class EconomicDispatch(Network):
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
         
         # initialize constraints 
-        self.constraints.balance_constraint = {t:self.model.addLConstr(
-                gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES)
-                - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
-                              for b in self.BATTERIES) if self.battery else 0,
-                gb.GRB.EQUAL,
-                0, name='Balance equation') for t in self.TIMES}
+        if self.battery:
+            self.constraints.balance_constraint = {t:self.model.addLConstr(
+                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
+                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
+                    - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES)
+                    - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                                  for b in self.BATTERIES),
+                    gb.GRB.EQUAL,
+                    0, name='Balance equation') for t in self.TIMES}
+        else: 
+            self.constraints.balance_constraint = {t:self.model.addLConstr(
+                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
+                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
+                    - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES),
+                    gb.GRB.EQUAL,
+                    0, name='Balance equation') for t in self.TIMES}
 
         T = self.TIMES
         if self.ramping:
@@ -220,7 +228,7 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=24, ramping=False, battery=0)
+    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True)
     ec.run()
     ec.calculate_results()
     ec.display_results()
