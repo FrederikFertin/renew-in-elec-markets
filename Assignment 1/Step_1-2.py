@@ -3,6 +3,9 @@ from gurobipy import GRB
 import numpy as np
 import pandas as pd
 
+
+
+
 class Network:
     # Reading data from Excel, requires openpyxl
     
@@ -38,6 +41,7 @@ class Network:
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
     C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
+    node_G = dict(zip(GENERATORS, gen_tech['Node'])) # Generator node placements
     
     ## Demand Information
     P_D_sum = dict(zip(TIMES, system_demand['System_demand'])) # Total system demands
@@ -45,6 +49,7 @@ class Network:
     for t, key in enumerate(TIMES):
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
     U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
+    node_D = dict(zip(DEMANDS, load_info['Node'])) # Load node placements
 
     ## Wind Turbine Information
     p_W_cap = 200 # Wind farm capacities (MW)
@@ -53,7 +58,22 @@ class Network:
     P_W = {} # Wind production for each hour and each wind farm
     for t, key in enumerate(TIMES):
         P_W[key] = dict(zip(WINDTURBINES, chosen_wind_profiles.iloc[t,:] * p_W_cap))
+    node_W = dict(zip(DEMANDS, wind_tech['Node'])) # Wind turbine node placements
 
+    ## Battery Information
+    BATTERIES = ['B1']
+    batt_cap_info = [400]
+    batt_cap = dict(zip(BATTERIES, batt_cap_info)) # Battery capacity is 400 MWh
+    batt_power = {'B1': 200} # Battery (dis)charging limit is 200 MW
+    batt_node = {'B1': 11} # Battery is placed at node 11
+    batt_eta = {'B1': 0.95} # Battery charging and discharging efficiency of 95%
+    batt_init_soc = dict(zip(BATTERIES, batt_cap_info*0.5)) # Initial state of charge of battery - at time t-1 (T0)
+    print(batt_init_soc)
+    ## Transmission Line Information
+    L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
+    L_reactance = dict(zip(LINES, line_info['Reactance'])) # Reactance of transmission line [pu.]
+    L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
+    L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
 
     """
     # Fraction of system consumption at each node indexed by loads 
