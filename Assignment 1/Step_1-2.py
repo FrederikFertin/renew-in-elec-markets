@@ -9,8 +9,8 @@ import pandas as pd
 class Network:
     # Reading data from Excel, requires openpyxl
     
-    # xls = pd.ExcelFile('Assignment 1/data.xlsx')
-    xls = pd.ExcelFile('data.xlsx')
+    xls = pd.ExcelFile('Assignment 1/data.xlsx')
+    # xls = pd.ExcelFile('data.xlsx')
     gen_tech = pd.read_excel(xls, 'gen_technical')
     gen_econ = pd.read_excel(xls, 'gen_cost')
     system_demand = pd.read_excel(xls, 'demand')
@@ -19,8 +19,8 @@ class Network:
     wind_tech = pd.read_excel(xls, 'wind_technical')
 
     # Loading csv file of normalized wind profiles
-    # wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
-    wind_profiles = pd.read_csv('wind_profiles.csv')
+    wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
+    # wind_profiles = pd.read_csv('wind_profiles.csv')
 
     # Number of each type of unit/identity
     G = np.shape(gen_tech)[0] # Number of generators
@@ -41,7 +41,10 @@ class Network:
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
     C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
+    P_R_DW = dict(zip(GENERATORS, gen_tech['R_D'])) # Up-ramping of generator
+    P_R_UP = dict(zip(GENERATORS, gen_tech['R_U'])) # Down-ramping of generator
     node_G = dict(zip(GENERATORS, gen_tech['Node'])) # Generator node placements
+    
     
     ## Demand Information
     P_D_sum = dict(zip(TIMES, system_demand['System_demand'])) # Total system demands
@@ -149,7 +152,7 @@ class EconomicDispatch(Network):
             self.constraints.ramping_dw = {(g,t):self.model.addConstr(
                 self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
                 gb.GRB.GREATER_EQUAL,
-                self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+                -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
             self.constraints.ramping_up = {(g,t):self.model.addConstr(
                 self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
                 gb.GRB.LESS_EQUAL,
@@ -220,7 +223,7 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=24, ramping=False, battery=0)
+    ec = EconomicDispatch(n_hours=24, ramping=False, battery=True)
     ec.run()
     ec.calculate_results()
     ec.display_results()
