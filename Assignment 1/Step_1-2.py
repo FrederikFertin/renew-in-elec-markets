@@ -44,10 +44,10 @@ class Network:
     P_D = {} # Distribution of system demands
     for t, key in enumerate(TIMES):
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
-    #U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
+    U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
 
     ## Wind Turbine Information
-    p_W_cap = 200 # Wind farm capcities (MW)
+    p_W_cap = 200 # Wind farm capacities (MW)
     WT = ['V{0}'.format(v) for v in wind_tech['Profile']]
     chosen_wind_profiles = wind_profiles[WT] # 'Randomly' chosen profiles for each wind farm
     P_W = {} # Wind production for each hour and each wind farm
@@ -80,7 +80,7 @@ class expando(object):
 
 class EconomicDispatch(Network):
     
-    def __init__(self, n_hours, ramping): # initialize class
+    def __init__(self, n_hours: int, ramping: bool, battery: bool): # initialize class
         # super().__init__(n_samples=n_samples)
         
         self.data = expando() # build data attributes
@@ -89,6 +89,7 @@ class EconomicDispatch(Network):
         self.results = expando()
         self.TIMES = self.TIMES[:n_hours]
         self.ramping = ramping
+        self.battery = battery
         self._build_model() # build gurobi model
     
     def _build_model(self):
@@ -96,29 +97,54 @@ class EconomicDispatch(Network):
         self.model = gb.Model(name='Economic Dispatch')
         
         # initialize variables 
-        self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[d][t],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
+        self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[t][d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
+        self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
+        if self.battery:
+            self.variables.battery_soc = {(b,t):self.model.addVar(lb=0,ub=self.batt_cap[b],name='soc of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
+            self.variables.battery_ch = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='dispatch of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
+            self.variables.battery_dis = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='consumption of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
         
         # initialize objective to maximize social welfare
-        demand_utility = gb.quicksum(self.u * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
-        generator_costs = gb.quicksum(self.c[g] * self.variables.generator_dispatch[g,t] for g in self.GENERATORS for t in self.TIMES)
+        demand_utility = gb.quicksum(self.U_D[d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
+        generator_costs = gb.quicksum(self.C_G_offer[g] * self.variables.generator_dispatch[g,t] for g in self.GENERATORS for t in self.TIMES)
         objective = demand_utility - generator_costs
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
         
         # initialize constraints 
-        self.constraints.balance_constraint = {t:self.model.addConstr(
-                gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS) - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS),
+        self.constraints.balance_constraint = {t:self.model.addLConstr(
+                gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
+                - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
+                - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES),
                 gb.GRB.EQUAL,
                 0, name='Balance equation') for t in self.TIMES}
 
         T = self.TIMES
         if self.ramping:
-            self.constraints.ramping_dw = {(g,t):self.model.addConstr(self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
-                                                               gb.GRB.GREATER_EQUAL,
-                                                               self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-            self.constraints.ramping_up = {(g,t):self.model.addConstr(self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
-                                                               gb.GRB.LESS_EQUAL,
-                                                               self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+            self.constraints.ramping_dw = {(g,t):self.model.addConstr(
+                self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
+                gb.GRB.GREATER_EQUAL,
+                self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+            self.constraints.ramping_up = {(g,t):self.model.addConstr(
+                self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
+                gb.GRB.LESS_EQUAL,
+                self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+        if self.battery:
+            self.constraints.batt_soc = {(b,t):self.model.addConstr(
+                self.variables.battery_soc[b,t], 
+                gb.GRB.EQUAL, 
+                self.variables.battery_soc[b,t-1] + batt_eta[b] * self.variables.battery_ch[b,t] - 1/batt_eta[b] * self.variables.battery_dis[b,t])
+                for b in self.BATTERIES for t in self.TIMES[1:]}
+            self.constraints.init_batt_soc = {(b):self.model.addConstr(
+                self.variables.battery_soc[b,0], 
+                gb.GRB.EQUAL, 
+                self.batt_init_soc[b] + batt_eta[b] * self.variables.battery_ch[b,0] - 1/batt_eta[b] * self.variables.battery_dis[b,0])
+                for b in self.BATTERIES}
+            self.constraints.final_batt_soc = {(b):self.model.addConstr(
+                self.variables.battery_soc[b,self.TIMES[-1]],
+                gb.GRB.GREATER_EQUAL,
+                self.batt_init_soc[b])
+                for b in self.BATTERIES}
         
     def _save_data(self):
         # save objective value
@@ -130,6 +156,9 @@ class EconomicDispatch(Network):
         # save generator dispatches 
         self.data.generator_dispatch_values = {(g,t):self.variables.generator_dispatch[g,t].x for g in self.GENERATORS for t in self.TIMES}
         
+        # save wind turbine dispatches 
+        self.data.wind_dispatch_values = {(w,t):self.variables.wind_turbines[w,t].x for w in self.WINDTURBINES for t in self.TIMES}
+        
         # save uniform prices lambda 
         self.data.lambda_ = {t:self.constraints.balance_constraint[t].Pi for t in self.TIMES}
         
@@ -139,10 +168,11 @@ class EconomicDispatch(Network):
 
     def calculate_results(self):
         # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
-        self.results.profits = {g:sum((self.data.lambda_[t] - self.c[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
-
+        self.results.profits_G = {g:sum((self.data.lambda_[t] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
+        self.results.profits_W = {w:sum(self.data.lambda_[t] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
+        
         # calculate utility of suppliers ( (U_D - lambda) * p_D )
-        self.results.utilities = {d:sum((self.u - self.data.lambda_[t]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
+        self.results.utilities = {d:sum((self.U_D[d] - self.data.lambda_[t]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
 
     def display_results(self):
         print()
@@ -152,7 +182,10 @@ class EconomicDispatch(Network):
         print("Social welfare: " + str(self.data.objective_value))
         print()
         print("Profit of suppliers: ")
-        print(self.results.profits)
+        print("Generators:")
+        print(self.results.profits_G)
+        print("Wind turbines:")
+        print(self.results.profits_W)
         print()
         print("Utility of demands: ")
         print(self.results.utilities)
