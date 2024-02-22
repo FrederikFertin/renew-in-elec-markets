@@ -2,106 +2,7 @@ import gurobipy as gb
 from gurobipy import GRB
 import numpy as np
 import pandas as pd
-
-
-
-
-class Network:
-    # Reading data from Excel, requires openpyxl
-    
-    xls = pd.ExcelFile('Assignment 1/data.xlsx')
-    # xls = pd.ExcelFile('data.xlsx')
-    gen_tech = pd.read_excel(xls, 'gen_technical')
-    gen_econ = pd.read_excel(xls, 'gen_cost')
-    system_demand = pd.read_excel(xls, 'demand')
-    line_info = pd.read_excel(xls, 'transmission_lines')
-    load_info = pd.read_excel(xls, 'demand_nodes')
-    wind_tech = pd.read_excel(xls, 'wind_technical')
-
-    # Loading csv file of normalized wind profiles
-    wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
-    # wind_profiles = pd.read_csv('wind_profiles.csv')
-
-    # Number of each type of unit/identity
-    G = np.shape(gen_tech)[0] # Number of generators
-    D = np.shape(load_info)[0] # Number of loads/demands
-    T = np.shape(system_demand)[0] # Number of time periods/hours
-    L = np.shape(line_info)[0] # Number of transmission lines
-    W = np.shape(wind_tech)[0] # Number of wind farms
-    # N = 24 # Number of nodes in network
-
-    # Lists of Generators etc.
-    GENERATORS = ['G{0}'.format(t) for t in range(1, G+1)]
-    DEMANDS = ['D{0}'.format(t) for t in range(1, D+1)]
-    LINES = ['L{0}'.format(t) for t in range(1, L+1)]
-    TIMES = ['T{0}'.format(t) for t in range(1, T+1)]
-    WINDTURBINES = ['W{0}'.format(t) for t in range(1, W+1)]
-    # NODES = ['N{0}'.format(t) for t in range(1, N)]
-
-    ## Conventional Generator Information
-    P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
-    C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
-    P_R_DW = dict(zip(GENERATORS, gen_tech['R_D'])) # Up-ramping of generator
-    P_R_UP = dict(zip(GENERATORS, gen_tech['R_U'])) # Down-ramping of generator
-    node_G = dict(zip(GENERATORS, gen_tech['Node'])) # Generator node placements
-    
-    
-    ## Demand Information
-    P_D_sum = dict(zip(TIMES, system_demand['System_demand'])) # Total system demands
-    P_D = {} # Distribution of system demands
-    for t, key in enumerate(TIMES):
-        P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
-    U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
-    node_D = dict(zip(DEMANDS, load_info['Node'])) # Load node placements
-
-    ## Wind Turbine Information
-    p_W_cap = 200 # Wind farm capacities (MW)
-    WT = ['V{0}'.format(v) for v in wind_tech['Profile']]
-    chosen_wind_profiles = wind_profiles[WT] # 'Randomly' chosen profiles for each wind farm
-    P_W = {} # Wind production for each hour and each wind farm
-    for t, key in enumerate(TIMES):
-        P_W[key] = dict(zip(WINDTURBINES, chosen_wind_profiles.iloc[t,:] * p_W_cap))
-    node_W = dict(zip(DEMANDS, wind_tech['Node'])) # Wind turbine node placements
-    
-    ## Electrolyzer Information
-    hydrogen_daily_demand = 100*0.2*24 # 8160 kg of hydrogen
-    
-    ## Battery Information
-    BATTERIES = ['B1']
-    batt_cap = {'B1': 400} # Battery capacity is 400 MWh
-    batt_init_soc = {'B1': 200} # Initial state of charge of battery - at time t-1 (T0)
-    batt_power = {'B1': 200} # Battery (dis)charging limit is 200 MW
-    batt_node = {'B1': 11} # Battery is placed at node 11
-    batt_eta = {'B1': 0.95} # Battery charging and discharging efficiency of 95%
-
-    ## Transmission Line Information
-    L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
-    L_reactance = dict(zip(LINES, line_info['Reactance'])) # Reactance of transmission line [pu.]
-    L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
-    L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
-
-    """
-    # Fraction of system consumption at each node indexed by loads 
-    P_D_fraction = np.array([0.038, 0.034, 0.063, 0.026, 0.025, 0.048, 0.044, 0.06,
-                             0.061, 0.068, 0.093, 0.068, 0.111, 0.035, 0.117, 0.064,
-                             0.045])
-
-    # Max generation indexed by generator
-    P_G_max = {'G1': 152, 'G2': 152, 'G3': 350, 'G4': 591, 'G5': 60, 'G6': 155,
-               'G7': 155, 'G8': 400, 'G9': 400, 'G10': 300, 'G11': 310, 'G12': 350}
-
-    # Demand quantities indexed by demand
-    P_D = {'D1': P_D_sum}
-
-    P_R_DW = {k: -v / 2 for k, v in P_G_max.items()}
-    P_R_UP = {k: v / 2 for k, v in P_G_max.items()}
-    """
-
-class expando(object):
-    '''
-        A small class which can have attributes set
-    '''
-    pass
+from Step_1_2 import Network, expando
 
 class EconomicDispatch(Network):
     
@@ -116,7 +17,7 @@ class EconomicDispatch(Network):
         self.ramping = ramping
         self.battery = battery
         self.H2 = hydrogen
-        if not battery: 
+        if not battery:
             self.BATTERIES = []
         self._build_model() # build gurobi model
     
@@ -146,15 +47,14 @@ class EconomicDispatch(Network):
         # initialize constraints 
         
         # balance constraint
-        if self.battery and self.H2:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES)
-                    - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
-                                  for b in self.BATTERIES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
+        self.constraints.balance_constraint = {t:self.model.addLConstr(
+                gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
+                - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
+                - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES)
+                - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                              for b in self.BATTERIES),
+                gb.GRB.EQUAL,
+                0, name='Balance equation') for t in self.TIMES}
         elif self.battery:
             self.constraints.balance_constraint = {t:self.model.addLConstr(
                     gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
@@ -279,54 +179,4 @@ class EconomicDispatch(Network):
         print(self.results.utilities)
         
 
-if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=24, ramping=False, battery=False, hydrogen=True)
-    ec.run()
-    ec.calculate_results()
-    ec.display_results()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
