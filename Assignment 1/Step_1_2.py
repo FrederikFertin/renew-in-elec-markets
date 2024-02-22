@@ -26,7 +26,7 @@ class Network:
     T = np.shape(system_demand)[0] # Number of time periods/hours
     L = np.shape(line_info)[0] # Number of transmission lines
     W = np.shape(wind_tech)[0] # Number of wind farms
-    # N = 24 # Number of nodes in network
+    N = 24 # Number of nodes in network
 
     # Lists of Generators etc.
     GENERATORS = ['G{0}'.format(t) for t in range(1, G+1)]
@@ -34,7 +34,7 @@ class Network:
     LINES = ['L{0}'.format(t) for t in range(1, L+1)]
     TIMES = ['T{0}'.format(t) for t in range(1, T+1)]
     WINDTURBINES = ['W{0}'.format(t) for t in range(1, W+1)]
-    # NODES = ['N{0}'.format(t) for t in range(1, N)]
+    NODES = ['N{0}'.format(t) for t in range(1, N+1)]
 
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
@@ -51,7 +51,7 @@ class Network:
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
     U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
     node_D = dict(zip(DEMANDS, load_info['Node'])) # Load node placements
-
+    
     ## Wind Turbine Information
     p_W_cap = 200 # Wind farm capacities (MW)
     WT = ['V{0}'.format(v) for v in wind_tech['Profile']]
@@ -74,9 +74,30 @@ class Network:
 
     ## Transmission Line Information
     L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
-    L_reactance = dict(zip(LINES, line_info['Reactance'])) # Reactance of transmission line [pu.]
+    L_susceptance = dict(zip(LINES, 1/line_info['Reactance'])) # Susceptance of transmission line [pu.]
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
     L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
+
+
+    def __init__(self):
+        # Nodal mappings:
+        self.map_g = self._map_units(self.node_G)
+        self.map_d = self._map_units(self.node_D)
+        self.map_w = self._map_units(self.node_W)
+        self.map_from = self._map_units(self.L_from)
+        self.map_to = self._map_units(self.L_to)
+
+    def _map_units(self,node_list):
+        mapping_units = {}
+        for number, node in enumerate(self.NODES):
+            n = number + 1
+            u_list = []
+            for k, v in node_list.items():
+                if v == n:
+                    u_list.append(k)
+            mapping_units[node] = u_list
+        return mapping_units
+
 
     """
     # Fraction of system consumption at each node indexed by loads 
@@ -104,7 +125,7 @@ class expando(object):
 class EconomicDispatch(Network):
     
     def __init__(self, n_hours: int, ramping: bool, battery: bool, hydrogen: bool): # initialize class
-        # super().__init__(n_samples=n_samples)
+        super().__init__()
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
@@ -278,7 +299,7 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=24, ramping=False, battery=False, hydrogen=True)
+    ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
     ec.run()
     ec.calculate_results()
     ec.display_results()
