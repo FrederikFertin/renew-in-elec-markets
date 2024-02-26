@@ -70,7 +70,7 @@ class Network:
     batt_init_soc = {'B1': 200} # Initial state of charge of battery - at time t-1 (T0)
     batt_power = {'B1': 200} # Battery (dis)charging limit is 200 MW
     batt_node = {'B1': 11} # Battery is placed at node 11
-    batt_eta = {'B1': 0.95} # Battery charging and discharging efficiency of 95%
+    batt_eta = {'B1': 0.99} # Battery charging and discharging efficiency of 95%
 
     ## Transmission Line Information
     L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
@@ -315,10 +315,10 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
-    # ec.run()
-    # ec.calculate_results()
-    # ec.display_results()
+    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True)
+    ec.run()
+    ec.calculate_results()
+    ec.display_results()
 
 
 
