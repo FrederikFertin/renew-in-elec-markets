@@ -13,7 +13,7 @@ import datetime as dt
 
 #%% 
 
-def createNetwork(mapping_gen,mapping_loads,mapping_wind):
+def createNetwork(mapping_gen, mapping_loads, mapping_wind):
     # create empty net
     net = pp.create_empty_network()
     
@@ -94,7 +94,7 @@ def drawSingleStep(net, p_G, p_W, LMP):
     plt.show()
 
 
-def drawLMP(net, LMP):
+def drawLMP(net, lambda_):
     
     size = 5
     
@@ -105,10 +105,9 @@ def drawLMP(net, LMP):
     lc = plot.create_line_collection(net, lines=net.line.index, zorder=1,\
                         use_bus_geodata=True,color='grey')
         
-    for t in range(0,len(LMP)):
-        lmp_t = LMP.iloc[t].values
+    for t, lambdas_t in lambda_.items():
         
-        time = LMP.index[t]
+        lmp_t = list(lambdas_t.values())
         
         cmap = plt.get_cmap('rainbow')
         norm = Normalize(0,25)
@@ -116,7 +115,7 @@ def drawLMP(net, LMP):
                 zorder=1, z=lmp_t, cmap=cmap, norm=norm, cbar_title="Node LMP [DKK]")# ,use_bus_geodata=True)
         
         plot.draw_collections([d_c, gen_c, wind_c, lc, bc])
-        plt.title('Network LMPs ' + str(time), fontsize=20)
+        plt.title('Network LMPs ' + str(t), fontsize=20)
         plt.show()
 
 

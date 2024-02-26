@@ -3,6 +3,7 @@ from gurobipy import GRB
 import numpy as np
 import pandas as pd
 from Step_1_2 import Network, expando
+from network_plots import createNetwork, drawNormal, drawSingleStep, drawLMP
 
 class NodalMarketClearing(Network):
     
@@ -76,11 +77,11 @@ class NodalMarketClearing(Network):
         # ramping constraints
         T = self.TIMES
         if self.ramping:
-            self.constraints.ramping_dw = {(g,t):self.model.addConstr(
+            self.constraints.ramping_dw = {(g,t):self.model.addLConstr(
                 self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
                 gb.GRB.GREATER_EQUAL,
                 -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-            self.constraints.ramping_up = {(g,t):self.model.addConstr(
+            self.constraints.ramping_up = {(g,t):self.model.addLConstr(
                 self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
                 gb.GRB.LESS_EQUAL,
                 self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
@@ -142,7 +143,7 @@ class NodalMarketClearing(Network):
 
         
         # save uniform prices lambda 
-        self.data.lambda_ = {(n,t):self.constraints.balance_constraint[n,t].Pi for n in self.NODES for t in self.TIMES}
+        self.data.lambda_ = {t:{n:self.constraints.balance_constraint[n,t].Pi for n in self.NODES} for t in self.TIMES}
         
     def run(self):
         self.model.optimize()
@@ -175,5 +176,12 @@ class NodalMarketClearing(Network):
 if __name__ == "__main__":
     ec = NodalMarketClearing(ramping=True, battery=True, hydrogen=True)
     ec.run()
+    net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
+    drawNormal(net)
+    drawLMP(net, ec.data.lambda_)
+    
+    
+    
+    
 
 
