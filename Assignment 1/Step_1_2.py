@@ -299,7 +299,7 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
+    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True)
     ec.run()
     ec.calculate_results()
     ec.display_results()
