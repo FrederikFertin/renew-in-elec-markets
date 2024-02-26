@@ -7,7 +7,7 @@ from network_plots import createNetwork, drawNormal, drawSingleStep, drawLMP
 
 class NodalMarketClearing(Network):
     
-    def __init__(self, ramping: bool, battery: bool, hydrogen: bool): # initialize class
+    def __init__(self, model_type: str, ramping: bool, battery: bool, hydrogen: bool): # initialize class
         super().__init__()
         
         self.data = expando() # build data attributes
@@ -19,6 +19,7 @@ class NodalMarketClearing(Network):
         self.H2 = hydrogen
         if not battery:
             self.BATTERIES = []
+        self.type = model_type
         self._build_model() # build gurobi model
     
     def _build_model(self):
@@ -29,7 +30,10 @@ class NodalMarketClearing(Network):
         self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[t][d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
-        self.variables.theta = {(n,t):self.model.addVar(lb=0,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
+        if self.type == 'nodal':
+            self.variables.theta = {(n,t):self.model.addVar(lb=0,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
+        elif self.type == 'zonal':
+            self.variables.ic = {(ic,t):self.model.addVar(lb=-ic_cap[ic],ub=ic_cap[ic],name='interconnector flow {0}'.format(ic)) for ic in self.INTERCONNECTORS for t in self.TIMES}
         if self.H2:
             self.variables.hydrogen = {(w,t):self.model.addVar(lb=0,ub=100,name='consumption of electrolyzer {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.battery:
@@ -48,16 +52,27 @@ class NodalMarketClearing(Network):
         # initialize constraints 
         
         # balance constraint
-        self.constraints.balance_constraint = {(n,t):self.model.addLConstr(
-            gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
-            - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
-            - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.map_w[n])
-            + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t]
-                              for b in self.map_b[n])
-            + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
-            gb.GRB.EQUAL,
-            0, name='Balance equation') for t in self.TIMES for n in self.NODES}
-
+        if self.type == 'nodal':
+            self.constraints.balance_constraint = {(n,t):self.model.addLConstr(
+                gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
+                - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
+                - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.map_w[n])
+                + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t]
+                                  for b in self.map_b[n])
+                + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
+                gb.GRB.EQUAL,
+                0, name='Balance equation') for t in self.TIMES for n in self.NODES}
+        
+        elif self.type == 'zonal':
+            self.constraints.balance_constraint = {(z,t):self.model.addLConstr(
+                gb.quicksum(self.variables.consumption[d,t] for n in self.map_z[z] for d in self.map_d[n])
+                - gb.quicksum(self.variables.generator_dispatch[g,t] for n in self.map_z[z] for g in self.map_g[n])
+                - gb.quicksum(self.variables.wind_turbines[w,t] for n in self.map_z[z] for w in self.map_w[n])
+                + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] for n in self.map_z[z] for b in self.map_b[n])
+                + gb.quicksum(self.variables.ic[ic] for ic in self.zonal[z]) * ((-1) if z == 'Z2' else 1), # direction of ic is towards zone Z2.
+                gb.GRB.EQUAL,
+                0, name='Balance equation') for t in self.TIMES for z in self.ZONES}
+        
         # self.constraints.balance_constraint = {t:self.model.addLConstr(
         #     gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
         #     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
@@ -67,12 +82,12 @@ class NodalMarketClearing(Network):
         #     + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
         #     gb.GRB.EQUAL,
         #     0, name='Balance equation') for t in self.TIMES for n in self.NODES}
-
-        self.constraints.lines = {(n,m,t): self.model.addLConstr(
-            self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
-            gb.GRB.LESS_EQUAL,
-            self.L_cap[line],
-            name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
+        if self.type == 'nodal':
+            self.constraints.lines = {(n,m,t): self.model.addLConstr(
+                self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
+                gb.GRB.LESS_EQUAL,
+                self.L_cap[line],
+                name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
         
         # ramping constraints
         T = self.TIMES
@@ -141,9 +156,11 @@ class NodalMarketClearing(Network):
         if self.H2:
             self.data.hydrogen = {(w,t):self.variables.hydrogen[w,t].x for w in self.WINDTURBINES for t in self.TIMES}
 
-        
         # save uniform prices lambda 
-        self.data.lambda_ = {t:{n:self.constraints.balance_constraint[n,t].Pi for n in self.NODES} for t in self.TIMES}
+        if self.type == 'nodal':
+            self.data.lambda_ = {t:{n:self.constraints.balance_constraint[n,t].Pi for n in self.NODES} for t in self.TIMES}
+        elif self.type == 'zonal':
+            self.data.lambda_ = {t:{z:self.constraints.balance_constraint[z,t].Pi for z in self.ZONES} for t in self.TIMES}
         
     def run(self):
         self.model.optimize()
@@ -174,7 +191,7 @@ class NodalMarketClearing(Network):
         print(self.results.utilities)
         
 if __name__ == "__main__":
-    ec = NodalMarketClearing(ramping=True, battery=True, hydrogen=True)
+    ec = NodalMarketClearing(model_type='zonal', ramping=True, battery=True, hydrogen=True)
     ec.run()
     net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     drawNormal(net)

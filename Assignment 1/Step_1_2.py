@@ -35,7 +35,12 @@ class Network:
     TIMES = ['T{0}'.format(t) for t in range(1, T+1)]
     WINDTURBINES = ['W{0}'.format(t) for t in range(1, W+1)]
     NODES = ['N{0}'.format(t) for t in range(1, N+1)]
-
+    ZONES = ['Z1', 'Z2', 'Z3']
+    
+    map_z = {'Z1': ['N17', 'N18', 'N21', 'N22'],
+             'Z2': ['N11', 'N12', 'N13', 'N14', 'N15', 'N16', 'N19', 'N20', 'N23', 'N24'],
+             'Z3': ['N{0}'.format(t) for t in range(1, 11)]}
+    
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
     C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
