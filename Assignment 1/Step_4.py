@@ -51,22 +51,22 @@ class NodalMarketClearing(Network):
             gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
             - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
             - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.map_w[n])
-            + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+            + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t]
                               for b in self.map_b[n])
             + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
             gb.GRB.EQUAL,
             0, name='Balance equation') for t in self.TIMES for n in self.NODES}
-        
+
         # self.constraints.balance_constraint = {t:self.model.addLConstr(
         #     gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
         #     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
         #     - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.map_w[n])
-        #     + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+        #     + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t]
         #                   for b in self.map_b[n])
         #     + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
         #     gb.GRB.EQUAL,
         #     0, name='Balance equation') for t in self.TIMES for n in self.NODES}
-        
+
         self.constraints.lines = {(n,m,t): self.model.addLConstr(
             self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
             gb.GRB.LESS_EQUAL,
