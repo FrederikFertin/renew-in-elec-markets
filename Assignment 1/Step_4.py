@@ -4,16 +4,15 @@ import numpy as np
 import pandas as pd
 from Step_1_2 import Network, expando
 
-class EconomicDispatch(Network):
+class NodalMarketClearing(Network):
     
-    def __init__(self, n_hours: int, ramping: bool, battery: bool, hydrogen: bool): # initialize class
-        # super().__init__(n_samples=n_samples)
+    def __init__(self, ramping: bool, battery: bool, hydrogen: bool): # initialize class
+        super().__init__()
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
         self.constraints = expando() # build sontraint attributes
         self.results = expando()
-        self.TIMES = self.TIMES[:n_hours]
         self.ramping = ramping
         self.battery = battery
         self.H2 = hydrogen
@@ -29,6 +28,7 @@ class EconomicDispatch(Network):
         self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[t][d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
+        self.variables.theta = {(n,t):self.model.addVar(lb=0,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
         if self.H2:
             self.variables.hydrogen = {(w,t):self.model.addVar(lb=0,ub=100,name='consumption of electrolyzer {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.battery:
@@ -47,37 +47,31 @@ class EconomicDispatch(Network):
         # initialize constraints 
         
         # balance constraint
-        self.constraints.balance_constraint = {t:self.model.addLConstr(
-                gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES)
-                - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
-                              for b in self.BATTERIES),
-                gb.GRB.EQUAL,
-                0, name='Balance equation') for t in self.TIMES}
-        elif self.battery:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES)
-                    - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
-                                  for b in self.BATTERIES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
-        elif self.H2:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
-        else:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
+        self.constraints.balance_constraint = {(n,t):self.model.addLConstr(
+            gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
+            - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
+            - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.map_w[n])
+            + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                              for b in self.map_b[n])
+            + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
+            gb.GRB.EQUAL,
+            0, name='Balance equation') for t in self.TIMES for n in self.NODES}
+        
+        # self.constraints.balance_constraint = {t:self.model.addLConstr(
+        #     gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
+        #     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
+        #     - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.map_w[n])
+        #     + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+        #                   for b in self.map_b[n])
+        #     + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
+        #     gb.GRB.EQUAL,
+        #     0, name='Balance equation') for t in self.TIMES for n in self.NODES}
+        
+        self.constraints.lines = {(n,m,t): self.model.addLConstr(
+            self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
+            gb.GRB.LESS_EQUAL,
+            self.L_cap[line],
+            name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
         
         # ramping constraints
         T = self.TIMES
@@ -148,7 +142,7 @@ class EconomicDispatch(Network):
 
         
         # save uniform prices lambda 
-        self.data.lambda_ = {t:self.constraints.balance_constraint[t].Pi for t in self.TIMES}
+        self.data.lambda_ = {(n,t):self.constraints.balance_constraint[n,t].Pi for n in self.NODES for t in self.TIMES}
         
     def run(self):
         self.model.optimize()
@@ -178,5 +172,8 @@ class EconomicDispatch(Network):
         print("Utility of demands: ")
         print(self.results.utilities)
         
+if __name__ == "__main__":
+    ec = NodalMarketClearing(ramping=True, battery=True, hydrogen=True)
+    ec.run()
 
 

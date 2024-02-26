@@ -59,7 +59,7 @@ class Network:
     P_W = {} # Wind production for each hour and each wind farm
     for t, key in enumerate(TIMES):
         P_W[key] = dict(zip(WINDTURBINES, chosen_wind_profiles.iloc[t,:] * p_W_cap))
-    node_W = dict(zip(DEMANDS, wind_tech['Node'])) # Wind turbine node placements
+    node_W = dict(zip(WINDTURBINES, wind_tech['Node'])) # Wind turbine node placements
     
     ## Electrolyzer Information
     hydrogen_daily_demand = 100*0.2*24 # 8160 kg of hydrogen
@@ -74,18 +74,20 @@ class Network:
 
     ## Transmission Line Information
     L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
-    L_susceptance = dict(zip(LINES, 1/line_info['Reactance'])) # Susceptance of transmission line [pu.]
+    # R_base = 
+    L_susceptance = dict(zip(LINES, 1/line_info['Reactance'])) # [500 for i in LINES])) Susceptance of transmission line [pu.]
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
     L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
-
-
+        
     def __init__(self):
         # Nodal mappings:
         self.map_g = self._map_units(self.node_G)
         self.map_d = self._map_units(self.node_D)
         self.map_w = self._map_units(self.node_W)
+        self.map_b = self._map_units(self.batt_node)
         self.map_from = self._map_units(self.L_from)
         self.map_to = self._map_units(self.L_to)
+        self._map_nodes()
 
     def _map_units(self,node_list):
         mapping_units = {}
@@ -97,6 +99,20 @@ class Network:
                     u_list.append(k)
             mapping_units[node] = u_list
         return mapping_units
+    
+    def _map_nodes(self):
+        self.map_n = {}
+        for node_to, lines in self.map_to.items():
+            self.map_n[node_to] = {}
+            for line in lines:
+                for node_from, lines_from in self.map_from.items():
+                    if line in lines_from:
+                        self.map_n[node_to][node_from] = line
+        for node_from, lines in self.map_from.items():
+            for line in lines:
+                for node_to, lines_to in self.map_to.items():
+                    if line in lines_to:
+                        self.map_n[node_from][node_to] = line
 
 
     """
@@ -170,7 +186,7 @@ class EconomicDispatch(Network):
                     gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
                     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
                     - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES)
-                    - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                    + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
                                   for b in self.BATTERIES),
                     gb.GRB.EQUAL,
                     0, name='Balance equation') for t in self.TIMES}
@@ -179,7 +195,7 @@ class EconomicDispatch(Network):
                     gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
                     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
                     - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES)
-                    - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                    + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
                                   for b in self.BATTERIES),
                     gb.GRB.EQUAL,
                     0, name='Balance equation') for t in self.TIMES}
@@ -300,9 +316,9 @@ class EconomicDispatch(Network):
 
 if __name__ == "__main__":
     ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
-    ec.run()
-    ec.calculate_results()
-    ec.display_results()
+    # ec.run()
+    # ec.calculate_results()
+    # ec.display_results()
 
 
 
