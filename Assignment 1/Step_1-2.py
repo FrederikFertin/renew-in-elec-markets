@@ -37,12 +37,7 @@ class Network:
     TIMES = ['T{0}'.format(t) for t in range(1, T+1)]
     WINDTURBINES = ['W{0}'.format(t) for t in range(1, W+1)]
     NODES = ['N{0}'.format(t) for t in range(1, N+1)]
-    ZONES = ['Z1', 'Z2', 'Z3']
-    
-    map_z = {'Z1': ['N17', 'N18', 'N21', 'N22'],
-             'Z2': ['N11', 'N12', 'N13', 'N14', 'N15', 'N16', 'N19', 'N20', 'N23', 'N24'],
-             'Z3': ['N{0}'.format(t) for t in range(1, 11)]}
-    
+
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
     C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
@@ -118,7 +113,6 @@ class Network:
             mapping_units[node] = u_list
         return mapping_units
 
-
     """
     # Fraction of system consumption at each node indexed by loads 
     P_D_fraction = np.array([0.038, 0.034, 0.063, 0.026, 0.025, 0.048, 0.044, 0.06,
@@ -175,6 +169,12 @@ class EconomicDispatch(Network):
             self.variables.battery_dis = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='consumption of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
         
         self.model.update()
+
+        ## Step 1 - getting duals for the marginal generator:
+        #self.constraints.generation_constraint_min = {t:self.model.addConstr(
+        #    self.variables.generator_dispatch['G7',t], gb.GRB.GREATER_EQUAL, 0.1, name='Min gen G7') for t in self.TIMES}
+        #self.constraints.generation_constraint_max = {t:self.model.addConstr(
+        #    self.variables.generator_dispatch['G7',t], gb.GRB.LESS_EQUAL, self.P_G_max['G7']-0.1, name='Max gen G7') for t in self.TIMES}
         
         # initialize objective to maximize social welfare
         demand_utility = gb.quicksum(self.U_D[d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
@@ -183,11 +183,6 @@ class EconomicDispatch(Network):
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
         
         # initialize constraints 
-        ## Step 1 - getting duals for the marginal generator:
-        #self.constraints.generation_constraint_min = {t:self.model.addConstr(
-        #    self.variables.generator_dispatch['G7',t], gb.GRB.GREATER_EQUAL, 0.1, name='Min gen G7') for t in self.TIMES}
-        #self.constraints.generation_constraint_max = {t:self.model.addConstr(
-        #    self.variables.generator_dispatch['G7',t], gb.GRB.LESS_EQUAL, self.P_G_max['G7']-0.1, name='Max gen G7') for t in self.TIMES}
         
         # balance constraint
         if self.battery and self.H2:
@@ -325,6 +320,7 @@ class EconomicDispatch(Network):
 
 if __name__ == "__main__":
     ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
+
     ec.run()
     ec.calculate_results()
     ec.display_results()
@@ -334,47 +330,3 @@ if __name__ == "__main__":
     #print(ec.constraints.generation_constraint_max['T1'].Pi)
     #print(ec.constraints.generation_constraint_min['T1'].Pi)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
