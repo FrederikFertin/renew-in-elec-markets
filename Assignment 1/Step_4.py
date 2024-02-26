@@ -47,7 +47,8 @@ class EconomicDispatch(Network):
         # initialize constraints 
         
         # balance constraint
-        self.constraints.balance_constraint = {t:self.model.addLConstr(
+        if self.battery and self.H2:
+            self.constraints.balance_constraint = {t:self.model.addLConstr(
                 gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
                 - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
                 - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES)
