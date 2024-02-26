@@ -4,8 +4,6 @@ import numpy as np
 import pandas as pd
 
 
-
-
 class Network:
     # Reading data from Excel, requires openpyxl
     
@@ -20,7 +18,7 @@ class Network:
 
     # Loading csv file of normalized wind profiles
     wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
-    # wind_profiles = pd.read_csv('wind_profiles.csv')
+    #wind_profiles = pd.read_csv('wind_profiles.csv')
 
     # Number of each type of unit/identity
     G = np.shape(gen_tech)[0] # Number of generators
@@ -66,7 +64,7 @@ class Network:
     P_W = {} # Wind production for each hour and each wind farm
     for t, key in enumerate(TIMES):
         P_W[key] = dict(zip(WINDTURBINES, chosen_wind_profiles.iloc[t,:] * p_W_cap))
-    node_W = dict(zip(DEMANDS, wind_tech['Node'])) # Wind turbine node placements
+    node_W = dict(zip(WINDTURBINES, wind_tech['Node'])) # Wind turbine node placements
     
     ## Electrolyzer Information
     hydrogen_daily_demand = 100*0.2*24 # 8160 kg of hydrogen
@@ -78,13 +76,15 @@ class Network:
     batt_power = {'B1': 200} # Battery (dis)charging limit is 200 MW
     batt_node = {'B1': 11} # Battery is placed at node 11
     batt_eta = {'B1': 0.95} # Battery charging and discharging efficiency of 95%
+    batt_eta = {'B1': 0.99} # Battery charging and discharging efficiency of 95%
 
     ## Transmission Line Information
     L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
-    L_susceptance = dict(zip(LINES, 1/line_info['Reactance'])) # Susceptance of transmission line [pu.]
+    # R_base = 
+    L_susceptance = dict(zip(LINES, 1/line_info['Reactance'])) # [500 for i in LINES])) Susceptance of transmission line [pu.]
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
     L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
-
+    
     ## Inter-Zonal capacitances
     c_z1_z2 = L_cap['L25'] + L_cap['L27']
     c_z2_z3 = 2000
@@ -99,13 +99,16 @@ class Network:
     ic_cap = {'Z12': c_z1_z2,
               'Z23': c_z2_z3}
 
+
     def __init__(self):
         # Nodal mappings:
         self.map_g = self._map_units(self.node_G)
         self.map_d = self._map_units(self.node_D)
         self.map_w = self._map_units(self.node_W)
+        self.map_b = self._map_units(self.batt_node)
         self.map_from = self._map_units(self.L_from)
         self.map_to = self._map_units(self.L_to)
+        self._map_nodes()
 
     def _map_units(self,node_list):
         mapping_units = {}
@@ -117,6 +120,20 @@ class Network:
                     u_list.append(k)
             mapping_units[node] = u_list
         return mapping_units
+    
+    def _map_nodes(self):
+        self.map_n = {}
+        for node_to, lines in self.map_to.items():
+            self.map_n[node_to] = {}
+            for line in lines:
+                for node_from, lines_from in self.map_from.items():
+                    if line in lines_from:
+                        self.map_n[node_to][node_from] = line
+        for node_from, lines in self.map_from.items():
+            for line in lines:
+                for node_to, lines_to in self.map_to.items():
+                    if line in lines_to:
+                        self.map_n[node_from][node_to] = line
 
 
     """
@@ -182,6 +199,7 @@ class EconomicDispatch(Network):
         objective = demand_utility - generator_costs
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
         
+        # initialize constraints
         # initialize constraints 
         ## Step 1 - getting duals for the marginal generator:
         #self.constraints.generation_constraint_min = {t:self.model.addConstr(
@@ -195,7 +213,7 @@ class EconomicDispatch(Network):
                     gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
                     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
                     - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES)
-                    - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                    + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
                                   for b in self.BATTERIES),
                     gb.GRB.EQUAL,
                     0, name='Balance equation') for t in self.TIMES}
@@ -204,7 +222,7 @@ class EconomicDispatch(Network):
                     gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
                     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
                     - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES)
-                    - gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                    + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
                                   for b in self.BATTERIES),
                     gb.GRB.EQUAL,
                     0, name='Balance equation') for t in self.TIMES}
@@ -325,56 +343,13 @@ class EconomicDispatch(Network):
 
 if __name__ == "__main__":
     ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
+    # ec.run()
+    # ec.calculate_results()
+    # ec.display_results()
+    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True)
     ec.run()
     ec.calculate_results()
     ec.display_results()
-    #print(ec.data.generator_dispatch_values)
-    #print(ec.data.wind_dispatch_values)
-    #print(ec.C_G_offer)
-    #print(ec.constraints.generation_constraint_max['T1'].Pi)
-    #print(ec.constraints.generation_constraint_min['T1'].Pi)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
