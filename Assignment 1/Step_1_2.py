@@ -113,6 +113,7 @@ class Network:
             mapping_units[node] = u_list
         return mapping_units
 
+
     """
     # Fraction of system consumption at each node indexed by loads 
     P_D_fraction = np.array([0.038, 0.034, 0.063, 0.026, 0.025, 0.048, 0.044, 0.06,
@@ -169,12 +170,6 @@ class EconomicDispatch(Network):
             self.variables.battery_dis = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='consumption of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
         
         self.model.update()
-
-        ## Step 1 - getting duals for the marginal generator:
-        #self.constraints.generation_constraint_min = {t:self.model.addConstr(
-        #    self.variables.generator_dispatch['G7',t], gb.GRB.GREATER_EQUAL, 0.1, name='Min gen G7') for t in self.TIMES}
-        #self.constraints.generation_constraint_max = {t:self.model.addConstr(
-        #    self.variables.generator_dispatch['G7',t], gb.GRB.LESS_EQUAL, self.P_G_max['G7']-0.1, name='Max gen G7') for t in self.TIMES}
         
         # initialize objective to maximize social welfare
         demand_utility = gb.quicksum(self.U_D[d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
@@ -183,6 +178,11 @@ class EconomicDispatch(Network):
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
         
         # initialize constraints 
+        ## Step 1 - getting duals for the marginal generator:
+        #self.constraints.generation_constraint_min = {t:self.model.addConstr(
+        #    self.variables.generator_dispatch['G7',t], gb.GRB.GREATER_EQUAL, 0.1, name='Min gen G7') for t in self.TIMES}
+        #self.constraints.generation_constraint_max = {t:self.model.addConstr(
+        #    self.variables.generator_dispatch['G7',t], gb.GRB.LESS_EQUAL, self.P_G_max['G7']-0.1, name='Max gen G7') for t in self.TIMES}
         
         # balance constraint
         if self.battery and self.H2:
@@ -328,7 +328,6 @@ if __name__ == "__main__":
     #print(ec.C_G_offer)
     #print(ec.constraints.generation_constraint_max['T1'].Pi)
     #print(ec.constraints.generation_constraint_min['T1'].Pi)
-
 
 
 
