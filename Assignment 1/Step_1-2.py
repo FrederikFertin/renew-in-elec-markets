@@ -80,6 +80,19 @@ class Network:
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
     L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
 
+    ## Inter-Zonal capacitances
+    c_z1_z2 = L_cap['L25'] + L_cap['L27']
+    c_z2_z3 = 2000
+    ZONES = ['Z1', 'Z2', 'Z3']
+    zone_cap = {'Z1': {'Z2': c_z1_z2},
+                  'Z2': {'Z1': c_z1_z2, 'Z3': c_z2_z3},
+                  'Z3': {'Z2': c_z2_z3}}
+    zonal = {'Z1': ['Z12'],
+             'Z2': ['Z12', 'Z23'],
+             'Z3': ['Z23']}
+    INTERCONNECTORS = ['Z12', 'Z23']
+    ic_cap = {'Z12': c_z1_z2,
+              'Z23': c_z2_z3}
 
     def __init__(self):
         # Nodal mappings:
@@ -99,7 +112,6 @@ class Network:
                     u_list.append(k)
             mapping_units[node] = u_list
         return mapping_units
-
 
     """
     # Fraction of system consumption at each node indexed by loads 
@@ -157,6 +169,12 @@ class EconomicDispatch(Network):
             self.variables.battery_dis = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='consumption of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
         
         self.model.update()
+
+        ## Step 1 - getting duals for the marginal generator:
+        #self.constraints.generation_constraint_min = {t:self.model.addConstr(
+        #    self.variables.generator_dispatch['G7',t], gb.GRB.GREATER_EQUAL, 0.1, name='Min gen G7') for t in self.TIMES}
+        #self.constraints.generation_constraint_max = {t:self.model.addConstr(
+        #    self.variables.generator_dispatch['G7',t], gb.GRB.LESS_EQUAL, self.P_G_max['G7']-0.1, name='Max gen G7') for t in self.TIMES}
         
         # initialize objective to maximize social welfare
         demand_utility = gb.quicksum(self.U_D[d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
@@ -305,6 +323,11 @@ if __name__ == "__main__":
     ec.run()
     ec.calculate_results()
     ec.display_results()
+    #print(ec.data.generator_dispatch_values)
+    #print(ec.data.wind_dispatch_values)
+    #print(ec.C_G_offer)
+    #print(ec.constraints.generation_constraint_max['T1'].Pi)
+    #print(ec.constraints.generation_constraint_min['T1'].Pi)
 
 
 
