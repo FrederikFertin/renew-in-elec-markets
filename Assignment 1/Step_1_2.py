@@ -342,7 +342,7 @@ class EconomicDispatch(Network):
         
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
+    ec = EconomicDispatch(n_hours=24, ramping=False, battery=False, hydrogen=False)
     # ec.run()
     # ec.calculate_results()
     # ec.display_results()
@@ -352,4 +352,53 @@ if __name__ == "__main__":
     ec.display_results()
 
 
+# Make some plots
+import matplotlib.pyplot as plt
+plt.stairs(ec.data.lambda_.values(), baseline=None)
+plt.xlabel('Hour of day')
+plt.ylabel('Price [$/MWh]')
+plt.ylim(min(ec.data.lambda_.values())-1, max(ec.data.lambda_.values())+1)
+plt.show()
 
+ar = np.asarray(list(ec.data.generator_dispatch_values.values()))
+ar = ar.reshape(12,24).T
+df = pd.DataFrame(ar, columns=ec.GENERATORS)
+plt.plot(df, label=ec.GENERATORS)
+plt.legend()
+plt.xlabel('Hour of day')
+plt.ylabel('Generation [MW]')
+plt.show()
+
+ar = np.asarray(list(ec.data.wind_dispatch_values.values()))
+ar = ar.reshape(6,24).T
+df = pd.DataFrame(ar, columns=ec.WINDTURBINES)
+plt.plot(df, label=ec.WINDTURBINES)
+plt.legend()
+plt.xlabel('Hour of day')
+plt.ylabel('Wind production [MW]')
+plt.show()
+
+ar = np.asarray(list(ec.data.consumption_values.values()))
+ar = ar.reshape(16,24).T
+df = pd.DataFrame(ar, columns=ec.DEMANDS)
+plt.plot(df, label=ec.DEMANDS)
+plt.legend()
+plt.show()
+
+ar = np.asarray(list(ec.data.battery.values()))
+ar = ar.reshape(1,24).T
+df = pd.DataFrame(ar, columns=ec.BATTERIES)
+plt.plot(df, label=ec.BATTERIES)
+plt.legend()
+plt.xlabel('Hour of day')
+plt.ylabel('Battery activity [MW]')
+plt.show()
+
+ar = np.asarray(list(ec.data.hydrogen.values()))
+ar = ar.reshape(6,24).T
+df = pd.DataFrame(ar, columns=ec.WINDTURBINES)
+plt.plot(df, label=ec.WINDTURBINES)
+plt.legend()
+plt.xlabel('Hour of day')
+plt.ylabel('Hydrogen production [MW]')
+plt.show()
