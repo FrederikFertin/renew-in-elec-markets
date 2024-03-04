@@ -33,7 +33,7 @@ class NodalMarketClearing(Network):
         if self.type == 'nodal':
             self.variables.theta = {(n,t):self.model.addVar(lb=0,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
         elif self.type == 'zonal':
-            self.variables.ic = {(ic,t):self.model.addVar(lb=-ic_cap[ic],ub=ic_cap[ic],name='interconnector flow {0}'.format(ic)) for ic in self.INTERCONNECTORS for t in self.TIMES}
+            self.variables.ic = {(ic,t):self.model.addVar(lb=-self.ic_cap[ic],ub=self.ic_cap[ic],name='interconnector flow {0}'.format(ic)) for ic in self.INTERCONNECTORS for t in self.TIMES}
         if self.H2:
             self.variables.hydrogen = {(w,t):self.model.addVar(lb=0,ub=100,name='consumption of electrolyzer {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.battery:
@@ -69,7 +69,7 @@ class NodalMarketClearing(Network):
                 - gb.quicksum(self.variables.generator_dispatch[g,t] for n in self.map_z[z] for g in self.map_g[n])
                 - gb.quicksum(self.variables.wind_turbines[w,t] for n in self.map_z[z] for w in self.map_w[n])
                 + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] for n in self.map_z[z] for b in self.map_b[n])
-                + gb.quicksum(self.variables.ic[ic] for ic in self.zonal[z]) * ((-1) if z == 'Z2' else 1), # direction of ic is towards zone Z2.
+                + gb.quicksum(self.variables.ic[ic,t] for ic in self.zonal[z]) * ((-1) if z == 'Z2' else 1), # direction of ic is towards zone Z2.
                 gb.GRB.EQUAL,
                 0, name='Balance equation') for t in self.TIMES for z in self.ZONES}
         
