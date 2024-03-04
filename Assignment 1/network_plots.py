@@ -17,9 +17,9 @@ def createNetwork(mapping_gen, mapping_loads, mapping_wind):
     # create empty net
     net = pp.create_empty_network()
     
-    bus_map = pd.read_csv('bus_map.csv', delimiter=';')
+    bus_map = pd.read_csv('Assignment 1\\bus_map.csv', delimiter=';')
     
-    line_map = pd.read_csv('lines.csv', delimiter=';')
+    line_map = pd.read_csv('Assignment 1\\lines.csv', delimiter=';')
     
     # Create buses
     for i in range(len(bus_map)):
