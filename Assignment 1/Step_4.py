@@ -208,7 +208,7 @@ if __name__ == "__main__":
 
         # Define a list of colors and line styles
         colors = ['green', 'blue', 'orange']
-        linestyles = ['-', '-', '--']
+        linestyles = ['-', '-.', '--']
 
         # Plot the three zones
         for i, zone in enumerate(zones):
