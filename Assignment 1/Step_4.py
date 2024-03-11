@@ -154,79 +154,77 @@ class NodalMarketClearing(Network, CommonMethods):
         print()
         print("Utility of demands: ")
         print(self.results.utilities)
+    
+    def plot_prices(self):
+        
+        # Extract the time steps
+        times = list(self.data.lambda_.keys())
+        
+        if self.type == 'zonal':
+            # Extract zones
+            zones = list(self.data.lambda_[times[0]].keys())
+            
+            # Define a list of colors and line styles
+            colors = ['green', 'blue', 'orange']
+            linestyles = ['-', '-', '--']
+
+            # Plot the three zones
+            for i, zone in enumerate(zones):
+                lambda_values = [self.data.lambda_[t][zone] for t in times]
+                plt.plot(times, lambda_values, drawstyle='steps', label=zone, color=colors[i], linestyle=linestyles[i], linewidth=3)
+
+            # Add labels and legend
+            plt.ylabel('Price [$/MWh]')
+            plt.xlabel('Time')
+            plt.legend() 
+            plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)       
+            plt.show()
+        
+        elif self.type == 'nodal':
+            # Extract nodes
+            nodes = list(self.data.lambda_[times[0]].keys())
+            
+            # Define a list of colors and line styles
+            colors = ['blue', 'green', 'red', 'orange', 'purple', 'cyan']
+            linestyles = ['-', '--']
+
+            # Plot the nodal time series as stairs plots with unique colors and line styles
+            fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+
+            # Plot the first 12 graphs in the upper plot
+            for i, node in enumerate(nodes[:12]):
+                lambda_values = [self.data.lambda_[t][node] for t in times]
+                color = colors[i % len(colors)]
+                linestyle = linestyles[i//6 % len(linestyles)]
+                ax1.plot(times, lambda_values, drawstyle='steps', label=node, color=color, linestyle=linestyle)
+
+            # Plot the remaining graphs in the lower plot
+            for i, node in enumerate(nodes[12:]):
+                lambda_values = [self.data.lambda_[t][node] for t in times]
+                color = colors[i % len(colors)]
+                linestyle = linestyles[i//6 % len(linestyles)]
+                ax2.plot(times, lambda_values, drawstyle='steps', label=node, color=color, linestyle=linestyle)
+
+            # Add labels and legend
+            ax1.set_ylabel('Price [$/MWh]', fontsize=16)
+            ax2.set_xlabel('Time', fontsize=16)
+            ax2.set_ylabel('Price [$/MWh]', fontsize=16)
+            ax1.legend(loc = 'upper left', fontsize=12)
+            ax2.legend(loc = 'upper left', fontsize=12)
+
+            # Show the plot
+            plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)
+            plt.show()
+            
         
 if __name__ == "__main__":
     
-    model_type='zonal'
+    model_type='nodal'
+
+    ec = NodalMarketClearing(model_type)
+    ec.run()
+    net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
+    #drawNormal(net)
+    #drawLMP(net, ec.data.lambda_)
+    ec.plot_prices()
     
-    if model_type == 'zonal':
-        ec = NodalMarketClearing(model_type)
-        ec.run()
-        net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
-        #drawNormal(net)
-        #drawLMP(net, ec.data.lambda_)
-        
-        # Extract the time steps and nodes
-        times = list(ec.data.lambda_.keys())
-        zones = list(ec.data.lambda_[times[0]].keys())
-
-        # Define a list of colors and line styles
-        colors = ['green', 'blue', 'orange']
-        linestyles = ['-', '-', '--']
-
-        # Plot the three zones
-        for i, zone in enumerate(zones):
-            lambda_values = [ec.data.lambda_[t][zone] for t in times]
-            plt.plot(times, lambda_values, drawstyle='steps', label=zone, color=colors[i], linestyle=linestyles[i], linewidth=3)
-
-        # Add labels and legend
-        plt.ylabel('Price [$/MWh]')
-        plt.xlabel('Time')
-        plt.legend() 
-        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)       
-        plt.show()
-        
-    elif model_type == 'nodal':
-    
-        ec = NodalMarketClearing(model_type)
-        ec.run()
-        # net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
-        # drawNormal(net)
-        # drawLMP(net, ec.data.lambda_)
-        
-        
-        # Extract the time steps and nodes
-        times = list(ec.data.lambda_.keys())
-        nodes = list(ec.data.lambda_[times[0]].keys())
-
-        # Define a list of colors and line styles
-        colors = ['blue', 'green', 'red', 'orange', 'purple', 'cyan']
-        linestyles = ['-', '--']
-
-        # Plot the nodal time series as stairs plots with unique colors and line styles
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-
-        # Plot the first 12 graphs in the upper plot
-        for i, node in enumerate(nodes[:12]):
-            lambda_values = [ec.data.lambda_[t][node] for t in times]
-            color = colors[i % len(colors)]
-            linestyle = linestyles[i//6 % len(linestyles)]
-            ax1.plot(times, lambda_values, drawstyle='steps', label=node, color=color, linestyle=linestyle)
-
-        # Plot the remaining graphs in the lower plot
-        for i, node in enumerate(nodes[12:]):
-            lambda_values = [ec.data.lambda_[t][node] for t in times]
-            color = colors[i % len(colors)]
-            linestyle = linestyles[i//6 % len(linestyles)]
-            ax2.plot(times, lambda_values, drawstyle='steps', label=node, color=color, linestyle=linestyle)
-
-        # Add labels and legend
-        ax1.set_ylabel('Price [$/MWh]', fontsize=16)
-        ax2.set_xlabel('Time', fontsize=16)
-        ax2.set_ylabel('Price [$/MWh]', fontsize=16)
-        ax1.legend(loc = 'upper left', fontsize=12)
-        ax2.legend(loc = 'upper left', fontsize=12)
-
-        # Show the plot
-        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)
-        plt.show()
