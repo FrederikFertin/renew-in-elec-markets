@@ -2,6 +2,7 @@ import gurobipy as gb
 from gurobipy import GRB
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 class Network:
@@ -54,7 +55,11 @@ class Network:
     P_D = {} # Distribution of system demands
     for t, key in enumerate(TIMES):
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
-    U_D = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
+    U_D = {}
+    for t, key in enumerate(TIMES):
+        U_D[key] = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
+    U_D['T9']['D13'] = 10.2
+    U_D['T9']['D16'] = 7.0
     node_D = dict(zip(DEMANDS, load_info['Node'])) # Load node placements
     
     ## Wind Turbine Information
@@ -194,7 +199,7 @@ class EconomicDispatch(Network):
         self.model.update()
         
         # initialize objective to maximize social welfare
-        demand_utility = gb.quicksum(self.U_D[d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
+        demand_utility = gb.quicksum(self.U_D[t][d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
         generator_costs = gb.quicksum(self.C_G_offer[g] * self.variables.generator_dispatch[g,t] for g in self.GENERATORS for t in self.TIMES)
         objective = demand_utility - generator_costs
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
@@ -322,7 +327,7 @@ class EconomicDispatch(Network):
         self.results.profits_W = {w:sum(self.data.lambda_[t] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
         
         # calculate utility of suppliers ( (U_D - lambda) * p_D )
-        self.results.utilities = {d:sum((self.U_D[d] - self.data.lambda_[t]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
+        self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
 
     def display_results(self):
         print()
@@ -341,8 +346,55 @@ class EconomicDispatch(Network):
         print(self.results.utilities)
         
 
+def plot_SD_curve(ec, T):
+    sort_offers = [('G100', 100, sum(ec.P_G_max.values()))]
+    for g, offer_volume in ec.P_G_max.items():
+        for ix, gen_data in enumerate(sort_offers):
+            if gen_data[1] > ec.C_G_offer[g]:
+                sort_offers.insert(ix, (g, ec.C_G_offer[g], offer_volume))
+                break
+    
+    sort_offers = sort_offers[0:len(sort_offers)-1]
+    plt.plot([0,sum(ec.P_W[T].values())], [0, 0], linewidth=1, color='blue', label='Supply Curve')
+    point = np.array([sum(ec.P_W[T].values()), 0])
+
+    for i in sort_offers:
+        up_point = np.array([point[0], i[1]])
+        right_point = np.array([point[0] + i[2], i[1]])
+        plt.plot([point[0], up_point[0]], [point[1], up_point[1]], linewidth=1, color='blue')
+        plt.plot([up_point[0], right_point[0]], [up_point[1], right_point[1]], linewidth=1, color='blue')
+        point = right_point.copy()
+    
+    sort_bids = [('D100', 0, sum(ec.P_D[T].values()))]
+    for d, bid_volume in ec.P_D[T].items():
+        for ix, demand_data in enumerate(sort_bids):
+            if demand_data[1] < ec.U_D[T][d]:
+                sort_bids.insert(ix, (d, ec.U_D[T][d], bid_volume))
+                break
+    
+    sort_bids = sort_bids[0:len(sort_bids)-1]
+    
+    plt.plot([0,sort_bids[0][2]], [sort_bids[0][1], sort_bids[0][1]], linewidth=1, color='orange', label='Demand Curve')
+    point = np.array([sort_bids[0][2], sort_bids[0][1]])
+
+    for i in sort_bids:
+        down_point = np.array([point[0], i[1]])
+        right_point = np.array([point[0] + i[2], i[1]])
+        plt.plot([point[0], down_point[0]], [point[1], down_point[1]], linewidth=1, color='orange')
+        plt.plot([down_point[0], right_point[0]], [down_point[1], right_point[1]], linewidth=1, color='orange')
+        point = right_point.copy()
+    
+    plt.plot([point[0], point[0]], [point[1], 0], linewidth=1, color='orange')
+    plt.title("Supply and Demand from 07:00 to 08:00")
+    plt.xlabel("Quantity [MWh]")
+    plt.ylabel("Price [$/MWh]")
+    plt.axhline(ec.data.lambda_[T], color = 'black', linewidth=0.5, linestyle='--', label='Electricity Price')
+    plt.legend()
+    plt.show()
+
 if __name__ == "__main__":
     ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
+    
     # ec.run()
     # ec.calculate_results()
     # ec.display_results()
@@ -350,6 +402,5 @@ if __name__ == "__main__":
     ec.run()
     ec.calculate_results()
     ec.display_results()
-
-
-
+    
+    plot_SD_curve(ec, 'T8')
