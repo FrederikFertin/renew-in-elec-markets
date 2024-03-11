@@ -18,10 +18,10 @@ def createNetwork(mapping_gen, mapping_loads, mapping_wind):
     net = pp.create_empty_network()
 
     #bus_map = pd.read_csv('Assignment 1/bus_map.csv', delimiter=';')
-    bus_map = pd.read_csv('bus_map.csv', delimiter=';')
+    bus_map = pd.read_csv('Assignment 1/bus_map.csv', delimiter=';')
     
     #line_map = pd.read_csv('Assignment 1/lines.csv', delimiter=';')
-    line_map = pd.read_csv('lines.csv', delimiter=';')
+    line_map = pd.read_csv('Assignment 1/lines.csv', delimiter=';')
     
     # Create buses
     for i in range(len(bus_map)):
@@ -54,9 +54,9 @@ def createNetwork(mapping_gen, mapping_loads, mapping_wind):
 
 def drawNormal(net):
     
-    bus_map = pd.read_csv('bus_map.csv', delimiter=';')
+    bus_map = pd.read_csv('Assignment 1/bus_map.csv', delimiter=';')
     
-    line_map = pd.read_csv('lines.csv', delimiter=';')
+    line_map = pd.read_csv('Assignment 1/lines.csv', delimiter=';')
         
     size = 5
     
@@ -120,7 +120,55 @@ def drawLMP(net, lambda_):
         plt.title('Network LMPs ' + str(t), fontsize=20)
         plt.show()
 
+def plot_SD_curve(ec, T):
+    """
+    Constructs the supply and demand curves of a given hour based on the run economic dispatch.
+    """
 
+    sort_offers = [('G100', 100, sum(ec.P_G_max.values()))]
+    for g, offer_volume in ec.P_G_max.items():
+        for ix, gen_data in enumerate(sort_offers):
+            if gen_data[1] > ec.C_G_offer[g]:
+                sort_offers.insert(ix, (g, ec.C_G_offer[g], offer_volume))
+                break
+    
+    sort_offers = sort_offers[0:len(sort_offers)-1]
+    plt.plot([0,sum(ec.P_W[T].values())], [0, 0], linewidth=1, color='blue', label='Supply Curve')
+    point = np.array([sum(ec.P_W[T].values()), 0])
+
+    for i in sort_offers:
+        up_point = np.array([point[0], i[1]])
+        right_point = np.array([point[0] + i[2], i[1]])
+        plt.plot([point[0], up_point[0]], [point[1], up_point[1]], linewidth=1, color='blue')
+        plt.plot([up_point[0], right_point[0]], [up_point[1], right_point[1]], linewidth=1, color='blue')
+        point = right_point.copy()
+    
+    sort_bids = [('D100', 0, sum(ec.P_D[T].values()))]
+    for d, bid_volume in ec.P_D[T].items():
+        for ix, demand_data in enumerate(sort_bids):
+            if demand_data[1] < ec.U_D[T][d]:
+                sort_bids.insert(ix, (d, ec.U_D[T][d], bid_volume))
+                break
+    
+    sort_bids = sort_bids[0:len(sort_bids)-1]
+    
+    plt.plot([0,sort_bids[0][2]], [sort_bids[0][1], sort_bids[0][1]], linewidth=1, color='orange', label='Demand Curve')
+    point = np.array([sort_bids[0][2], sort_bids[0][1]])
+
+    for i in sort_bids:
+        down_point = np.array([point[0], i[1]])
+        right_point = np.array([point[0] + i[2], i[1]])
+        plt.plot([point[0], down_point[0]], [point[1], down_point[1]], linewidth=1, color='orange')
+        plt.plot([down_point[0], right_point[0]], [down_point[1], right_point[1]], linewidth=1, color='orange')
+        point = right_point.copy()
+    
+    plt.plot([point[0], point[0]], [point[1], 0], linewidth=1, color='orange')
+    plt.title("Supply and Demand from 07:00 to 08:00")
+    plt.xlabel("Quantity [MWh]")
+    plt.ylabel("Price [$/MWh]")
+    plt.axhline(ec.data.lambda_[T], color = 'black', linewidth=0.5, linestyle='--', label='Electricity Price')
+    plt.legend()
+    plt.show()
 
 
 
