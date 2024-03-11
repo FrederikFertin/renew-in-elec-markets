@@ -207,18 +207,19 @@ if __name__ == "__main__":
         zones = list(ec.data.lambda_[times[0]].keys())
 
         # Define a list of colors and line styles
-        colors = ['blue', 'orange', 'green']
-        linestyles = ['-', '--', '-.']
+        colors = ['green', 'blue', 'orange']
+        linestyles = ['-', '-', '--']
 
         # Plot the three zones
         for i, zone in enumerate(zones):
             lambda_values = [ec.data.lambda_[t][zone] for t in times]
-            plt.plot(times, lambda_values, drawstyle='steps', label=zone, color=colors[i], linestyle=linestyles[i])
+            plt.plot(times, lambda_values, drawstyle='steps', label=zone, color=colors[i], linestyle=linestyles[i], linewidth=3)
 
         # Add labels and legend
         plt.ylabel('Price [$/MWh]')
-        plt.legend()        
-        #plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)
+        plt.xlabel('Time')
+        plt.legend() 
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)       
         plt.show()
         
     elif model_type == 'nodal':
@@ -256,13 +257,12 @@ if __name__ == "__main__":
             ax2.plot(times, lambda_values, drawstyle='steps', label=node, color=color, linestyle=linestyle)
 
         # Add labels and legend
-        ax1.set_ylabel('Price [$/MWh]')
-        ax2.set_xlabel('Time')
-        ax2.set_ylabel('Price [$/MWh]')
-        ax1.legend()
-        ax2.legend()
+        ax1.set_ylabel('Price [$/MWh]', fontsize=16)
+        ax2.set_xlabel('Time', fontsize=16)
+        ax2.set_ylabel('Price [$/MWh]', fontsize=16)
+        ax1.legend(loc = 'upper left', fontsize=12)
+        ax2.legend(loc = 'upper left', fontsize=12)
 
         # Show the plot
-        
         plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)
         plt.show()
