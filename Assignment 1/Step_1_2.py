@@ -7,8 +7,8 @@ import pandas as pd
 class Network:
     # Reading data from Excel, requires openpyxl
     
-    xls = pd.ExcelFile('Assignment 1/data.xlsx')
-    # xls = pd.ExcelFile('data.xlsx')
+    #xls = pd.ExcelFile('Assignment 1/data.xlsx')
+    xls = pd.ExcelFile('data.xlsx')
     gen_tech = pd.read_excel(xls, 'gen_technical')
     gen_econ = pd.read_excel(xls, 'gen_cost')
     system_demand = pd.read_excel(xls, 'demand')
@@ -17,8 +17,8 @@ class Network:
     wind_tech = pd.read_excel(xls, 'wind_technical')
 
     # Loading csv file of normalized wind profiles
-    wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
-    #wind_profiles = pd.read_csv('wind_profiles.csv')
+    #wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
+    wind_profiles = pd.read_csv('wind_profiles.csv')
 
     # Number of each type of unit/identity
     G = np.shape(gen_tech)[0] # Number of generators
@@ -352,6 +352,7 @@ if __name__ == "__main__":
     ec.display_results()
 
 
+    """"
     # Make some plots
     import matplotlib.pyplot as plt
     plt.stairs(ec.data.lambda_.values(), baseline=None)
@@ -402,3 +403,4 @@ if __name__ == "__main__":
     plt.xlabel('Hour of day')
     plt.ylabel('Electrolyzer consumption [MW]')
     plt.show()
+    """
