@@ -24,7 +24,7 @@ def createNetwork(mapping_gen, mapping_loads, mapping_wind):
     # Create buses
     for i in range(len(bus_map)):
         pp.create_bus(net, vn_kv=0.4, index = i,
-                      geodata=(bus_map['y-coord'][i], bus_map['x-coord'][i]),
+                      geodata=(bus_map['x-coord'][i], -bus_map['y-coord'][i]),
                       name=bus_map['Bus'][i])
         
         for j in range(len(mapping_gen[bus_map['Bus'][i]])):
@@ -110,7 +110,7 @@ def drawLMP(net, lambda_):
         lmp_t = list(lambdas_t.values())
         
         cmap = plt.get_cmap('rainbow')
-        norm = Normalize(0,25)
+        norm = Normalize(4,14)
         bc = plot.create_bus_collection(net, buses=net.bus.index, size=size, 
                 zorder=1, z=lmp_t, cmap=cmap, norm=norm, cbar_title="Node LMP [DKK]")# ,use_bus_geodata=True)
         
