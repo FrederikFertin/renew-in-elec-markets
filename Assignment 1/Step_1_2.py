@@ -3,13 +3,14 @@ from gurobipy import GRB
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from Step_2 import CommonMethods
 
 
 class Network:
     # Reading data from Excel, requires openpyxl
     
-    #xls = pd.ExcelFile('Assignment 1/data.xlsx')
-    xls = pd.ExcelFile('data.xlsx')
+    xls = pd.ExcelFile('Assignment 1/data.xlsx')
+    #xls = pd.ExcelFile('data.xlsx')
     gen_tech = pd.read_excel(xls, 'gen_technical')
     gen_econ = pd.read_excel(xls, 'gen_cost')
     system_demand = pd.read_excel(xls, 'demand')
@@ -18,8 +19,8 @@ class Network:
     wind_tech = pd.read_excel(xls, 'wind_technical')
 
     # Loading csv file of normalized wind profiles
-    #wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
-    wind_profiles = pd.read_csv('wind_profiles.csv')
+    wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
+    #wind_profiles = pd.read_csv('wind_profiles.csv')
 
     # Number of each type of unit/identity
     G = np.shape(gen_tech)[0] # Number of generators
@@ -164,7 +165,7 @@ class expando(object):
     '''
     pass
 
-class EconomicDispatch(Network):
+class EconomicDispatch(Network, CommonMethods):
     
     def __init__(self, n_hours: int, ramping: bool, battery: bool, hydrogen: bool): # initialize class
         super().__init__()
@@ -247,50 +248,16 @@ class EconomicDispatch(Network):
                     0, name='Balance equation') for t in self.TIMES}
         
         # ramping constraints
-        T = self.TIMES
         if self.ramping:
-            self.constraints.ramping_dw = {(g,t):self.model.addConstr(
-                self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
-                gb.GRB.GREATER_EQUAL,
-                -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-            self.constraints.ramping_up = {(g,t):self.model.addConstr(
-                self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
-                gb.GRB.LESS_EQUAL,
-                self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-            
+            self.add_ramping_constraints()
+
         # battery constraints
         if self.battery:
-            # soc constraint
-            self.constraints.batt_soc = {(b,t):self.model.addLConstr(
-                self.variables.battery_soc[b,t], 
-                gb.GRB.EQUAL,
-                self.variables.battery_soc[b,T[n]] + self.batt_eta[b] * self.variables.battery_ch[b,t] - 1/self.batt_eta[b] * self.variables.battery_dis[b,t])
-                for b in self.BATTERIES for n,t in enumerate(self.TIMES[1:])}
-            # initializing soc constraint
-            self.constraints.init_batt_soc = {(b):self.model.addLConstr(
-                self.variables.battery_soc[b,self.TIMES[0]], 
-                gb.GRB.EQUAL, 
-                self.batt_init_soc[b] + self.batt_eta[b] * self.variables.battery_ch[b,self.TIMES[0]] - 1/self.batt_eta[b] * self.variables.battery_dis[b,self.TIMES[0]])
-                for b in self.BATTERIES}
-            # final soc constraint
-            self.constraints.final_batt_soc = {(b):self.model.addLConstr(
-                self.variables.battery_soc[b,self.TIMES[-1]],
-                gb.GRB.GREATER_EQUAL,
-                self.batt_init_soc[b])
-                for b in self.BATTERIES}
+            self.add_battery_constraints()
         
         # electrolyzer constraints
         if self.H2:
-            self.constraints.hydrogen_limit = {(w,t):self.model.addLConstr(
-                self.variables.hydrogen[w,t],
-                gb.GRB.LESS_EQUAL,
-                self.P_W[t][w])
-                for t in self.TIMES for w in self.WINDTURBINES}
-            self.constraints.hydrogen_sum = {(w):self.model.addLConstr(
-                gb.quicksum(self.variables.hydrogen[w,t] for t in self.TIMES),
-                gb.GRB.GREATER_EQUAL,
-                self.hydrogen_daily_demand) 
-                for w in self.WINDTURBINES}
+            self.add_hydrogen_constraints()
         
     def _save_data(self):
         # save objective value
@@ -398,7 +365,7 @@ if __name__ == "__main__":
     # ec.run()
     # ec.calculate_results()
     # ec.display_results()
-    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True)
+    ec = EconomicDispatch(n_hours=24, ramping=True, battery=False, hydrogen=True)
     ec.run()
     ec.calculate_results()
     ec.display_results()
