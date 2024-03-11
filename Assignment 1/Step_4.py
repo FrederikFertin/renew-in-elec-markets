@@ -45,7 +45,7 @@ class NodalMarketClearing(Network):
         self.model.update()
         
         # initialize objective to maximize social welfare
-        demand_utility = gb.quicksum(self.U_D[d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
+        demand_utility = gb.quicksum(self.U_D[t][d] * self.variables.consumption[d,t] for d in self.DEMANDS for t in self.TIMES)
         generator_costs = gb.quicksum(self.C_G_offer[g] * self.variables.generator_dispatch[g,t] for g in self.GENERATORS for t in self.TIMES)
         objective = demand_utility - generator_costs
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
