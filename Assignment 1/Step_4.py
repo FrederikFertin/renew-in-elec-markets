@@ -4,21 +4,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from Step_1_2 import Network, expando
+from Step_2 import CommonMethods
 from network_plots import createNetwork, drawNormal, drawSingleStep, drawLMP
 
-class NodalMarketClearing(Network):
+class NodalMarketClearing(Network, CommonMethods):
     
-    def __init__(self, model_type: str, ramping: bool, battery: bool, hydrogen: bool): # initialize class
+    def __init__(self, model_type: str): # initialize class
         super().__init__()
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
         self.constraints = expando() # build sontraint attributes
         self.results = expando()
-        self.ramping = ramping
-        self.battery = battery
-        self.H2 = hydrogen
-        if not battery:
+        self.ramping = True
+        self.battery = True
+        self.H2 = True
+        if not self.battery:
             self.BATTERIES = []
         self.type = model_type
         self._build_model() # build gurobi model
@@ -91,51 +92,14 @@ class NodalMarketClearing(Network):
                 name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
         
         # ramping constraints
-        T = self.TIMES
-        if self.ramping:
-            self.constraints.ramping_dw = {(g,t):self.model.addLConstr(
-                self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
-                gb.GRB.GREATER_EQUAL,
-                -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-            self.constraints.ramping_up = {(g,t):self.model.addLConstr(
-                self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,T[n]],
-                gb.GRB.LESS_EQUAL,
-                self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-            
+        self.add_ramping_constraints()
+
         # battery constraints
-        if self.battery:
-            # soc constraint
-            self.constraints.batt_soc = {(b,t):self.model.addLConstr(
-                self.variables.battery_soc[b,t], 
-                gb.GRB.EQUAL,
-                self.variables.battery_soc[b,T[n]] + self.batt_eta[b] * self.variables.battery_ch[b,t] - 1/self.batt_eta[b] * self.variables.battery_dis[b,t])
-                for b in self.BATTERIES for n,t in enumerate(self.TIMES[1:])}
-            # initializing soc constraint
-            self.constraints.init_batt_soc = {(b):self.model.addLConstr(
-                self.variables.battery_soc[b,self.TIMES[0]], 
-                gb.GRB.EQUAL, 
-                self.batt_init_soc[b] + self.batt_eta[b] * self.variables.battery_ch[b,self.TIMES[0]] - 1/self.batt_eta[b] * self.variables.battery_dis[b,self.TIMES[0]])
-                for b in self.BATTERIES}
-            # final soc constraint
-            self.constraints.final_batt_soc = {(b):self.model.addLConstr(
-                self.variables.battery_soc[b,self.TIMES[-1]],
-                gb.GRB.GREATER_EQUAL,
-                self.batt_init_soc[b])
-                for b in self.BATTERIES}
+        self.add_battery_constraints()
         
         # electrolyzer constraints
-        if self.H2:
-            self.constraints.hydrogen_limit = {(w,t):self.model.addLConstr(
-                self.variables.hydrogen[w,t],
-                gb.GRB.LESS_EQUAL,
-                self.P_W[t][w])
-                for t in self.TIMES for w in self.WINDTURBINES}
-            self.constraints.hydrogen_sum = {(w):self.model.addLConstr(
-                gb.quicksum(self.variables.hydrogen[w,t] for t in self.TIMES),
-                gb.GRB.GREATER_EQUAL,
-                self.hydrogen_daily_demand) 
-                for w in self.WINDTURBINES}
-        
+        self.add_hydrogen_constraints()
+
     def _save_data(self):
         # save objective value
         self.data.objective_value = self.model.ObjVal
@@ -260,7 +224,9 @@ class NodalMarketClearing(Network):
         
 if __name__ == "__main__":
     
-    ec = NodalMarketClearing('nodal', ramping=True, battery=True, hydrogen=True)
+    model_type='nodal'
+
+    ec = NodalMarketClearing(model_type)
     ec.run()
     net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
