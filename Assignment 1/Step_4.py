@@ -132,18 +132,21 @@ class NodalMarketClearing(Network, CommonMethods):
         self._save_data()
 
     def calculate_results(self): # Not functional currently
+        
         # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
-        self.results.profits_G = {g:sum((self.data.lambda_[t] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
-        self.results.profits_W = {w:sum(self.data.lambda_[t] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
+        #self.results.profits_G = {g:sum((self.data.lambda_[t] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
+        #self.results.profits_W = {w:sum(self.data.lambda_[t] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
         
         # calculate utility of suppliers ( (U_D - lambda) * p_D )
-        self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
+        #self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
 
         if self.type == 'nodal':
-            self.results.profits_G = {g:sum((self.data.lambda_[t][z] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES for z in self.ZONES) for g in self.GENERATORS}
+            self.results.profits_G = {g:sum((self.data.lambda_[t][n] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES for n in self.NODES) for g in self.GENERATORS}
+            self.results.profits_W = {w:sum(self.data.lambda_[t][n] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for n in self.NODES) for w in self.WINDTURBINES}
+            self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t][n]) * self.data.consumption_values[d,t] for t in self.TIMES for n in self.NODES) for d in self.DEMANDS}
         elif self.type == 'zonal':
             self.data.lambda_ = {t:{z:self.constraints.balance_constraint[z,t].Pi for z in self.ZONES} for t in self.TIMES}
-
+        
     def display_results(self):
         print()
         print("-------------------   RESULTS  -------------------")
@@ -228,9 +231,10 @@ if __name__ == "__main__":
 
     ec = NodalMarketClearing(model_type)
     ec.run()
-    net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
+    ec.calculate_results()
+    ec.display_results()
+    #net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
     #drawLMP(net, ec.data.lambda_)
     ec.plot_prices()
     
-    ec.calculate_results()
