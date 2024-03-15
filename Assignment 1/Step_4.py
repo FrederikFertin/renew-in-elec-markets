@@ -100,6 +100,8 @@ class NodalMarketClearing(Network, CommonMethods):
         # electrolyzer constraints
         self.add_hydrogen_constraints()
 
+        # Write out model for debugging
+        self.model.write('model.lp')
     def _save_data(self):
         # save objective value
         self.data.objective_value = self.model.ObjVal
@@ -124,6 +126,7 @@ class NodalMarketClearing(Network, CommonMethods):
         # save uniform prices lambda 
         if self.type == 'nodal':
             self.data.lambda_ = {t:{n:self.constraints.balance_constraint[n,t].Pi for n in self.NODES} for t in self.TIMES}
+            self.data.theta = {n:{t:self.variables.theta[n,t].x for t in self.TIMES} for n in self.NODES}
         elif self.type == 'zonal':
             self.data.lambda_ = {t:{z:self.constraints.balance_constraint[z,t].Pi for z in self.ZONES} for t in self.TIMES}
         
@@ -131,21 +134,15 @@ class NodalMarketClearing(Network, CommonMethods):
         self.model.optimize()
         self._save_data()
 
-    def calculate_results(self): # Not functional currently
-        
-        # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
-        #self.results.profits_G = {g:sum((self.data.lambda_[t] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
-        #self.results.profits_W = {w:sum(self.data.lambda_[t] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
-        
-        # calculate utility of suppliers ( (U_D - lambda) * p_D )
-        #self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
-
+    def calculate_results(self): 
         if self.type == 'nodal':
             self.results.profits_G = {g:sum((self.data.lambda_[t][n] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES for n in self.NODES) for g in self.GENERATORS}
             self.results.profits_W = {w:sum(self.data.lambda_[t][n] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for n in self.NODES) for w in self.WINDTURBINES}
             self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t][n]) * self.data.consumption_values[d,t] for t in self.TIMES for n in self.NODES) for d in self.DEMANDS}
         elif self.type == 'zonal':
-            self.data.lambda_ = {t:{z:self.constraints.balance_constraint[z,t].Pi for z in self.ZONES} for t in self.TIMES}
+            self.results.profits_G = {g:sum((self.data.lambda_[t][z] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES for z in self.ZONES) for g in self.GENERATORS}
+            self.results.profits_W = {w:sum(self.data.lambda_[t][z] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for z in self.ZONES) for w in self.WINDTURBINES}
+            self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t][z]) * self.data.consumption_values[d,t] for t in self.TIMES for z in self.ZONES) for d in self.DEMANDS}
         
     def display_results(self):
         print()
@@ -236,5 +233,16 @@ if __name__ == "__main__":
     #net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
     #drawLMP(net, ec.data.lambda_)
-    ec.plot_prices()
+    #ec.plot_prices()
+    print("")
+    print(ec.data.theta)
+    # Plot values of theta
+    if model_type == 'nodal':
+        for node in ec.NODES:
+            theta_values = [ec.data.theta[node][t] for t in ec.TIMES]
+            plt.plot(ec.TIMES, theta_values, label=node)
+        plt.xlabel('Time')
+        plt.ylabel('Voltage angle [rad]')
+        plt.legend()
+        plt.show()
     
