@@ -54,9 +54,9 @@ def createNetwork(mapping_gen, mapping_loads, mapping_wind):
 
 def drawNormal(net):
     
-    bus_map = pd.read_csv('Assignment 1/bus_map.csv', delimiter=';')
+    bus_map = pd.read_csv('bus_map.csv', delimiter=';')
     
-    line_map = pd.read_csv('Assignment 1/lines.csv', delimiter=';')
+    line_map = pd.read_csv('lines.csv', delimiter=';')
         
     size = 5
     

@@ -9,7 +9,7 @@ from network_plots import plot_SD_curve
 class Network:
     # Reading data from Excel, requires openpyxl
     
-    xls = pd.ExcelFile('data.xlsx')
+    xls = pd.ExcelFile('Assignment 1/data.xlsx')
     #xls = pd.ExcelFile('data.xlsx')
     gen_tech = pd.read_excel(xls, 'gen_technical')
     gen_econ = pd.read_excel(xls, 'gen_cost')
@@ -19,7 +19,7 @@ class Network:
     wind_tech = pd.read_excel(xls, 'wind_technical')
 
     # Loading csv file of normalized wind profiles
-    wind_profiles = pd.read_csv('wind_profiles.csv')
+    wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
     #wind_profiles = pd.read_csv('wind_profiles.csv')
 
     # Number of each type of unit/identity
