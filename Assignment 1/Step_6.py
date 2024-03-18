@@ -209,13 +209,28 @@ if __name__ == "__main__":
     plt.show()
 
 
-    # Plot grouped bar chart for all generators excluding wind with profit from reserves, dispatch and total profit.
-    profits = pd.DataFrame([ec.results.profits_G, ec.data.reserve_profit, ec.data.dispatch_profit], index=["Total", "Reserve", "Dispatch"]).T
-    profits.plot(kind='bar')
-    plt.title("Profits of generators")
-    plt.xlabel("Generator")
+    # Plot grouped bar chart for all generators including wind with profit from reserves, dispatch and total profit.
+    # Create a DataFrame for generator profits
+    gen_profits = pd.DataFrame([ec.results.profits_G, ec.data.reserve_profit, ec.data.dispatch_profit], index=["Total", "Reserve", "Dispatch"]).T
+
+    # Create a DataFrame for wind generator profits
+    wind_profits = pd.DataFrame([ec.results.profits_W], index=["Total"]).T
+    wind_profits["Reserve"] = 0
+    wind_profits["Dispatch"] = wind_profits["Total"]
+
+    # Concatenate the two DataFrames
+    all_profits = pd.concat([gen_profits, wind_profits])
+
+    # Plot the profits
+    all_profits.plot(kind='bar')
+    plt.title("Profits of generators and wind turbines")
+    plt.xlabel("Generator / Wind Turbine")
     plt.ylabel("Profit [$]")
     plt.show()
+
+    all_profits.to_csv("profits.csv") # save profits to csv file
+    
+    
 
     
     
