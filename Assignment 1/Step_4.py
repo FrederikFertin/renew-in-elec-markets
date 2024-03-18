@@ -21,7 +21,10 @@ class NodalMarketClearing(Network, CommonMethods):
         self.H2 = True
         if not self.battery:
             self.BATTERIES = []
-        self.type = model_type
+        if model_type != 'nodal' and model_type != 'zonal':
+            raise ValueError('Model type should be either nodal or zonal')
+        else:
+            self.type = model_type
         self._build_model() # build gurobi model
     
     def _build_model(self):
@@ -33,7 +36,7 @@ class NodalMarketClearing(Network, CommonMethods):
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.type == 'nodal':
-            self.variables.theta = {(n,t):self.model.addVar(lb=0,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
+            self.variables.theta = {(n,t):self.model.addVar(name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
         elif self.type == 'zonal':
             self.variables.ic = {(ic,t):self.model.addVar(lb=-self.ic_cap[ic],ub=self.ic_cap[ic],name='interconnector flow {0}'.format(ic)) for ic in self.INTERCONNECTORS for t in self.TIMES}
         if self.H2:
@@ -85,11 +88,22 @@ class NodalMarketClearing(Network, CommonMethods):
         #     gb.GRB.EQUAL,
         #     0, name='Balance equation') for t in self.TIMES for n in self.NODES}
         if self.type == 'nodal':
-            self.constraints.lines = {(n,m,t): self.model.addLConstr(
+            self.constraints.lines = {(n,m,t): self.model.addConstr(
                 self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
                 gb.GRB.LESS_EQUAL,
                 self.L_cap[line],
                 name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
+            # Redundant constraints as we loop over all lines in previous constraint:
+            """ self.constraints.lines_reverse = {(n,m,t): self.model.addConstr(
+                self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
+                gb.GRB.GREATER_EQUAL,
+                -self.L_cap[line],
+                name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()} """
+            self.constraints.voltage_angle = {t:self.model.addLConstr(
+                self.variables.theta['N1',t],
+                gb.GRB.EQUAL,
+                0, name='Voltage angle fixation') for t in self.TIMES}
+
         
         # ramping constraints
         self.add_ramping_constraints()
@@ -124,6 +138,8 @@ class NodalMarketClearing(Network, CommonMethods):
         # save uniform prices lambda 
         if self.type == 'nodal':
             self.data.lambda_ = {t:{n:self.constraints.balance_constraint[n,t].Pi for n in self.NODES} for t in self.TIMES}
+            self.data.theta = {t:{n:self.variables.theta[n,t].x for n in self.NODES} for t in self.TIMES}
+            self.data.loading = {t:{n: {m:self.constraints.lines[n,m,t].Pi for m in self.map_n[n].keys()} for n in self.NODES} for t in self.TIMES}
         elif self.type == 'zonal':
             self.data.lambda_ = {t:{z:self.constraints.balance_constraint[z,t].Pi for z in self.ZONES} for t in self.TIMES}
         
