@@ -45,10 +45,15 @@ class Network:
     
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
+    P_G_min = dict(zip(GENERATORS, gen_tech['P_min'])) # Min generation cap.
     C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
     P_R_DW = dict(zip(GENERATORS, gen_tech['R_D'])) # Up-ramping of generator
     P_R_UP = dict(zip(GENERATORS, gen_tech['R_U'])) # Down-ramping of generator
     node_G = dict(zip(GENERATORS, gen_tech['Node'])) # Generator node placements
+    P_R_PLUS = dict(zip(GENERATORS, gen_tech['R_plus'])) # Up reserve capacity
+    P_R_MINUS = dict(zip(GENERATORS, gen_tech['R_minus'])) # Down reserve capacity
+    C_U = dict(zip(GENERATORS, gen_econ['C_u'])) # Up reserve cost
+    C_D = dict(zip(GENERATORS, gen_econ['C_d'])) # Down reserve cost
     
     
     ## Demand Information
