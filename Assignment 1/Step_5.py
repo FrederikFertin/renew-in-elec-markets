@@ -4,37 +4,37 @@ import numpy as np
 import pandas as pd
 from Step_1_2 import Network, CommonMethods, expando, EconomicDispatch
 
-class BalancingMarket (EconomicDispatch, Network, CommonMethods):
-    def __init__(self, n_hours: int, ramping: bool,battery: bool, hydrogen: bool):
+
+class BalancingMarket(EconomicDispatch, Network, CommonMethods):
+    def __init__(self, n_hours: int, ramping: bool, battery: bool, hydrogen: bool):
         super().__init__(n_hours, ramping, battery, hydrogen)
 
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
-        self.constraints = expando() # build sontraint attributes
+        self.constraints = expando() # build constraint attributes
         self.results = expando()
         self.TIMES = self.TIMES[:n_hours]
         self._build_model() # build gurobi model
 
-
     def _build_model(self):
-         # initialize optimization model
-         self.model = gb.Model(name='Balancing Market')
+        # initialize optimization model
+        self.model = gb.Model(name='Balancing Market')
 
-            # Create variables
-         self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[t][d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
-         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
-         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
-         self.variables.upregulation = {(g,t):self.model.addVar(lb=0,name='upregulation of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
-         self.variables.downregulation = {(g,t):self.model.addVar(lb=0,name='downregulation of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
-         self.variables.wind_upregulation = {(w,t):self.model.addVar(lb=0,name='upregulation of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
-         self.variables.wind_downregulation = {(w,t):self.model.addVar(lb=0,name='downregulation of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
-         self.variables.demand_curt = {(d,t):self.model.addVar(lb=0,name='curtailment of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
-         #self.variables.wind_curt = {(w,t):self.model.addVar(lb=0,name='curtailment of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
-         self.data.generator_dispatch_values = {(g,t):self.variables.generator_dispatch[g,t] for g in self.GENERATORS for t in self.TIMES}
-         self.data.wind_dispatch_values = {(w,t):self.variables.wind_turbines[w,t] for w in self.WINDTURBINES for t in self.TIMES}
+        # Create variables
+        self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[t][d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
+        self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
+        self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
+        self.variables.upregulation = {(g,t):self.model.addVar(lb=0,name='upregulation of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
+        self.variables.downregulation = {(g,t):self.model.addVar(lb=0,name='downregulation of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
+        self.variables.wind_upregulation = {(w,t):self.model.addVar(lb=0,name='upregulation of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
+        self.variables.wind_downregulation = {(w,t):self.model.addVar(lb=0,name='downregulation of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
+        self.variables.demand_curt = {(d,t):self.model.addVar(lb=0,name='curtailment of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
+        #self.variables.wind_curt = {(w,t):self.model.addVar(lb=0,name='curtailment of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
+        self.data.generator_dispatch_values = {(g,t):self.variables.generator_dispatch[g,t] for g in self.GENERATORS for t in self.TIMES}
+        self.data.wind_dispatch_values = {(w,t):self.variables.wind_turbines[w,t] for w in self.WINDTURBINES for t in self.TIMES}
         
 
-         self.model.update()
+        self.model.update()
 
         
 
@@ -44,11 +44,11 @@ class BalancingMarket (EconomicDispatch, Network, CommonMethods):
         #  objective = demand_utility - generator_costs
         #  self.model.setObjective(objective, gb.GRB.MAXIMIZE)
 
-         upregulation = gb.quicksum((self.C_G_offer[g] + 0.1*self.C_G_offer[g])*self.variables.upregulation[g,'T10'] for g in self.GENERATORS)
-         downregulation = gb.quicksum((self.C_G_offer[g] - 0.13*self.C_G_offer[g])*self.variables.downregulation[g,'T10'] for g in self.GENERATORS)
-         curt_cost = gb.quicksum(self.variables.demand_curt[d,'T10']*400 for d in self.DEMANDS)
-         objective = upregulation + curt_cost - downregulation
-         self.model.setObjective(objective, gb.GRB.MINIMIZE)
+        upregulation = gb.quicksum((self.C_G_offer[g] + 0.1*self.C_G_offer[g])*self.variables.upregulation[g,'T10'] for g in self.GENERATORS)
+        downregulation = gb.quicksum((self.C_G_offer[g] - 0.13*self.C_G_offer[g])*self.variables.downregulation[g,'T10'] for g in self.GENERATORS)
+        curt_cost = gb.quicksum(self.variables.demand_curt[d,'T10']*400 for d in self.DEMANDS)
+        objective = upregulation + curt_cost - downregulation
+        self.model.setObjective(objective, gb.GRB.MINIMIZE)
 
         # Set objective function (sum(generator dispatch prices for T10))
          #Sum af (generator_dispatch_values prices for T10 + 0.1* prices of generator T10)*upregulation pr. generator + curt_cost*demand_curt
@@ -59,23 +59,23 @@ class BalancingMarket (EconomicDispatch, Network, CommonMethods):
 
         #self.model.optimize()
          
-         #initialize constraints
-         balancing_service_expr = gb.quicksum(
-                self.variables.demand_curt[d, 'T10'] + self.variables.wind_upregulation[w, 'T10']
-                + self.variables.upregulation[g, 'T10'] - self.variables.downregulation[g, 'T10']
-                - self.variables.wind_downregulation[w, 'T10']
-                for g in self.GENERATORS for w in self.WINDTURBINES for d in self.DEMANDS
-            )
-         # Import the required data from Step_1_2.py
+        #initialize constraints
+        balancing_service_expr = gb.quicksum(
+            self.variables.demand_curt[d, 'T10'] + self.variables.wind_upregulation[w, 'T10']
+            + self.variables.upregulation[g, 'T10'] - self.variables.downregulation[g, 'T10']
+            - self.variables.wind_downregulation[w, 'T10']
+            for g in self.GENERATORS for w in self.WINDTURBINES for d in self.DEMANDS
+        )
+        # Import the required data from Step_1_2.py
 
-         self.model.addConstr(
-            balancing_service_expr == (
-                self.data.generator_dispatch_values['G9', 'T10'] +
-                0.1 * self.data.wind_dispatch_values['W1', 'T10'] +
-                0.1 * self.data.wind_dispatch_values['W2', 'T10'] -
-                0.15 * self.data.wind_dispatch_values['W4', 'T10'] -
-                0.15 * self.data.wind_dispatch_values['W6', 'T10']
-            )
+        self.model.addConstr(
+        balancing_service_expr == (
+            self.data.generator_dispatch_values['G9', 'T10'] +
+            0.1 * self.data.wind_dispatch_values['W1', 'T10'] +
+            0.1 * self.data.wind_dispatch_values['W2', 'T10'] -
+            0.15 * self.data.wind_dispatch_values['W4', 'T10'] -
+            0.15 * self.data.wind_dispatch_values['W6', 'T10']
+        )
         )
 
          
@@ -90,7 +90,7 @@ class BalancingMarket (EconomicDispatch, Network, CommonMethods):
         }
          
          self.constraints.curtailment = {
-            (d,'T10'): self.model.addConstr(self.variables.demand_curt[d,'T10'], gb.GRB.LESS_EQUAL, self.P_D_sum['T10'])
+            (d,'T10'): self.model.addConstr(self.variables.demand_curt[d,'T10'], gb.GRB.LESS_EQUAL, self.P_D['T10'][d])
             for d in self.DEMANDS
         }
          
@@ -117,7 +117,7 @@ class BalancingMarket (EconomicDispatch, Network, CommonMethods):
 
     def clear_balancing_market(self):
         if 'T10' in self.TIMES:
-        # Outage in generator 9
+            # Outage in generator 9
             self.data.generator_dispatch_values['G9', 'T10'].ub = 0
                 
         # Adjust wind farm productions based on forecast deviations

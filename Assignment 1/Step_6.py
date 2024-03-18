@@ -42,7 +42,7 @@ class ReserveAndDispatch(Network, CommonMethods):
         
         # Minimize reserve costs
         self.model.setObjective(gb.quicksum(self.variables.generator_up[g,t] * self.C_U[g] for g in self.GENERATORS for t in self.TIMES)
-                                + gb.quicksum(self.variables.generator_down[g,t] * self.C_D[g]  for g in self.GENERATORS for t in self.TIMES), gb.GRB.MINIMIZE)
+                                + gb.quicksum(self.variables.generator_down[g,t] * self.C_D[g] for g in self.GENERATORS for t in self.TIMES), gb.GRB.MINIMIZE)
         
         # Compute total demand
         total_demand = {t:gb.quicksum(self.P_D[t][d] for d in self.DEMANDS) for t in self.TIMES}
