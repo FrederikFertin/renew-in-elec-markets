@@ -32,7 +32,7 @@ class NodalMarketClearing(Network):
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.type == 'nodal':
-            self.variables.theta = {(n,t):self.model.addVar(lb=0,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
+            self.variables.theta = {(n,t):self.model.addVar(name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
         elif self.type == 'zonal':
             self.variables.ic = {(ic,t):self.model.addVar(lb=-self.ic_cap[ic],ub=self.ic_cap[ic],name='interconnector flow {0}'.format(ic)) for ic in self.INTERCONNECTORS for t in self.TIMES}
         if self.H2:
@@ -89,6 +89,11 @@ class NodalMarketClearing(Network):
                 gb.GRB.LESS_EQUAL,
                 self.L_cap[line],
                 name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
+            self.constraints.theta = self.model.addLConstr(
+                self.variables.theta['N1','T1'],
+                gb.GRB.EQUAL,
+                0,
+                name='Reference angle')
         
         # ramping constraints
         T = self.TIMES
@@ -261,6 +266,6 @@ if __name__ == "__main__":
     ec.run()
     net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
-    #drawLMP(net, ec.data.lambda_)
-    ec.plot_prices()
+    drawLMP(net, ec.data.lambda_)
+    # ec.plot_prices()
     

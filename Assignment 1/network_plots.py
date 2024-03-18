@@ -112,9 +112,9 @@ def drawLMP(net, lambda_):
         lmp_t = list(lambdas_t.values())
         
         cmap = plt.get_cmap('rainbow')
-        norm = Normalize(4,14)
+        norm = Normalize(0,20)
         bc = plot.create_bus_collection(net, buses=net.bus.index, size=size, 
-                zorder=1, z=lmp_t, cmap=cmap, norm=norm, cbar_title="Node LMP [DKK]")# ,use_bus_geodata=True)
+                zorder=1, z=lmp_t, cmap=cmap, norm=norm, cbar_title="Node LMP [$/MWh]")# ,use_bus_geodata=True)
         
         plot.draw_collections([d_c, gen_c, wind_c, lc, bc])
         plt.title('Network LMPs ' + str(t), fontsize=20)
