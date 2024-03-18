@@ -28,7 +28,6 @@ class ReserveAndDispatch(Network, CommonMethods):
         if not battery: 
             self.BATTERIES = []
         self._build_reserve() # build reserve model
-        #self._build_model() # build gurobi model
         
     
     def _build_reserve(self):
@@ -109,6 +108,11 @@ class ReserveAndDispatch(Network, CommonMethods):
         
         # save down reserve prices
         self.data.sigma_down_ = {t:self.constraints.reserve_down[t].Pi for t in self.TIMES}
+
+        # save profits of suppliers
+        self.data.reserve_profit = {g:sum((self.data.sigma_up_[t] - self.C_U[g]) * self.data.up_reserve_values[g,t] + # Up reserve profit
+                                        (self.data.sigma_down_[t] - self.C_D[g]) * self.data.down_reserve_values[g,t] for t in self.TIMES) for g in self.GENERATORS} # Down reserve profit
+        
         
     def _save_data(self):
         # save objective value
@@ -134,6 +138,9 @@ class ReserveAndDispatch(Network, CommonMethods):
         
         # save uniform prices lambda 
         self.data.lambda_ = {t:self.constraints.balance_constraint[t].Pi for t in self.TIMES}
+
+        # save profits of suppliers
+        self.data.dispatch_profit = {g:sum((self.data.lambda_[t] - self.C_G_offer[g]) * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
         
     def run_reserve(self):
         self.model.optimize()
@@ -146,9 +153,7 @@ class ReserveAndDispatch(Network, CommonMethods):
 
     def calculate_results(self):
         # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
-        self.results.profits_G = {g:sum((self.data.lambda_[t] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] + # Dispatch profit
-                                        (self.data.sigma_up_[t] - self.C_U[g]) * self.data.up_reserve_values[g,t] + # Up reserve profit
-                                        (self.data.sigma_down_[t] - self.C_D[g]) * self.data.down_reserve_values[g,t] for t in self.TIMES) for g in self.GENERATORS} # Down reserve profit
+        self.results.profits_G = {g:self.data.reserve_profit[g] + self.data.dispatch_profit[g] for g in self.GENERATORS} # Down reserve profit
         
         self.results.profits_W = {w:sum(self.data.lambda_[t] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
         
@@ -193,4 +198,24 @@ if __name__ == "__main__":
     plt.ylabel("Dispatch [MW]")
     plt.legend()
     plt.show()
+
+    # Plot bar chart of profits for all suppliers
+    plt.bar(ec.results.profits_G.keys(), ec.results.profits_G.values(), label="Generators")
+    plt.bar(ec.results.profits_W.keys(), ec.results.profits_W.values(), label="Wind turbines")
+    plt.title("Profits of suppliers")
+    plt.xlabel("Supplier")
+    plt.ylabel("Profit [$]")
+    plt.legend()
+    plt.show()
+
+
+    # Plot grouped bar chart for all generators excluding wind with profit from reserves, dispatch and total profit.
+    profits = pd.DataFrame([ec.results.profits_G, ec.data.reserve_profit, ec.data.dispatch_profit], index=["Total", "Reserve", "Dispatch"]).T
+    profits.plot(kind='bar')
+    plt.title("Profits of generators")
+    plt.xlabel("Generator")
+    plt.ylabel("Profit [$]")
+    plt.show()
+
+    
     
