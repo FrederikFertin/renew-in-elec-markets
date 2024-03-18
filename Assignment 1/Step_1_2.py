@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from Step_2 import CommonMethods
-
+from network_plots import plot_SD_curve
 
 class Network:
     # Reading data from Excel, requires openpyxl
@@ -45,10 +45,15 @@ class Network:
     
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
+    P_G_min = dict(zip(GENERATORS, gen_tech['P_min'])) # Min generation cap.
     C_G_offer = dict(zip(GENERATORS, gen_econ['C'])) # Generator day-ahead offer price
     P_R_DW = dict(zip(GENERATORS, gen_tech['R_D'])) # Up-ramping of generator
     P_R_UP = dict(zip(GENERATORS, gen_tech['R_U'])) # Down-ramping of generator
     node_G = dict(zip(GENERATORS, gen_tech['Node'])) # Generator node placements
+    P_R_PLUS = dict(zip(GENERATORS, gen_tech['R_plus'])) # Up reserve capacity
+    P_R_MINUS = dict(zip(GENERATORS, gen_tech['R_minus'])) # Down reserve capacity
+    C_U = dict(zip(GENERATORS, gen_econ['C_u'])) # Up reserve cost
+    C_D = dict(zip(GENERATORS, gen_econ['C_d'])) # Down reserve cost
     
     
     ## Demand Information
@@ -142,23 +147,6 @@ class Network:
                         self.map_n[node_from][node_to] = line
 
 
-    """
-    # Fraction of system consumption at each node indexed by loads 
-    P_D_fraction = np.array([0.038, 0.034, 0.063, 0.026, 0.025, 0.048, 0.044, 0.06,
-                             0.061, 0.068, 0.093, 0.068, 0.111, 0.035, 0.117, 0.064,
-                             0.045])
-
-    # Max generation indexed by generator
-    P_G_max = {'G1': 152, 'G2': 152, 'G3': 350, 'G4': 591, 'G5': 60, 'G6': 155,
-               'G7': 155, 'G8': 400, 'G9': 400, 'G10': 300, 'G11': 310, 'G12': 350}
-
-    # Demand quantities indexed by demand
-    P_D = {'D1': P_D_sum}
-
-    P_R_DW = {k: -v / 2 for k, v in P_G_max.items()}
-    P_R_UP = {k: v / 2 for k, v in P_G_max.items()}
-    """
-
 class expando(object):
     '''
         A small class which can have attributes set
@@ -183,7 +171,7 @@ class EconomicDispatch(Network, CommonMethods):
         self._build_model() # build gurobi model
     
     def _build_model(self):
-        # initialize optimization model
+        # initialize optimization modenb  bbn l
         self.model = gb.Model(name='Economic Dispatch')
         
         # initialize variables 
@@ -213,39 +201,9 @@ class EconomicDispatch(Network, CommonMethods):
         #self.constraints.generation_constraint_max = {t:self.model.addConstr(
         #    self.variables.generator_dispatch['G7',t], gb.GRB.LESS_EQUAL, self.P_G_max['G7']-0.1, name='Max gen G7') for t in self.TIMES}
         
-        # balance constraint
-        if self.battery and self.H2:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES)
-                    + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
-                                  for b in self.BATTERIES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
-        elif self.battery:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES)
-                    + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
-                                  for b in self.BATTERIES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
-        elif self.H2:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.WINDTURBINES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
-        else:
-            self.constraints.balance_constraint = {t:self.model.addLConstr(
-                    gb.quicksum(self.variables.consumption[d,t] for d in self.DEMANDS)
-                    - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.GENERATORS)
-                    - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.WINDTURBINES),
-                    gb.GRB.EQUAL,
-                    0, name='Balance equation') for t in self.TIMES}
+        # Balance constraints
+        # Evaluates based on the values of self.battery and self.H2
+        self.constraints.balance_constraint = self.add_balance_constraints()
         
         # ramping constraints
         if self.ramping:
@@ -311,53 +269,6 @@ class EconomicDispatch(Network, CommonMethods):
         print()
         print("Utility of demands: ")
         print(self.results.utilities)
-        
-
-def plot_SD_curve(ec, T):
-    sort_offers = [('G100', 100, sum(ec.P_G_max.values()))]
-    for g, offer_volume in ec.P_G_max.items():
-        for ix, gen_data in enumerate(sort_offers):
-            if gen_data[1] > ec.C_G_offer[g]:
-                sort_offers.insert(ix, (g, ec.C_G_offer[g], offer_volume))
-                break
-    
-    sort_offers = sort_offers[0:len(sort_offers)-1]
-    plt.plot([0,sum(ec.P_W[T].values())], [0, 0], linewidth=1, color='blue', label='Supply Curve')
-    point = np.array([sum(ec.P_W[T].values()), 0])
-
-    for i in sort_offers:
-        up_point = np.array([point[0], i[1]])
-        right_point = np.array([point[0] + i[2], i[1]])
-        plt.plot([point[0], up_point[0]], [point[1], up_point[1]], linewidth=1, color='blue')
-        plt.plot([up_point[0], right_point[0]], [up_point[1], right_point[1]], linewidth=1, color='blue')
-        point = right_point.copy()
-    
-    sort_bids = [('D100', 0, sum(ec.P_D[T].values()))]
-    for d, bid_volume in ec.P_D[T].items():
-        for ix, demand_data in enumerate(sort_bids):
-            if demand_data[1] < ec.U_D[T][d]:
-                sort_bids.insert(ix, (d, ec.U_D[T][d], bid_volume))
-                break
-    
-    sort_bids = sort_bids[0:len(sort_bids)-1]
-    
-    plt.plot([0,sort_bids[0][2]], [sort_bids[0][1], sort_bids[0][1]], linewidth=1, color='orange', label='Demand Curve')
-    point = np.array([sort_bids[0][2], sort_bids[0][1]])
-
-    for i in sort_bids:
-        down_point = np.array([point[0], i[1]])
-        right_point = np.array([point[0] + i[2], i[1]])
-        plt.plot([point[0], down_point[0]], [point[1], down_point[1]], linewidth=1, color='orange')
-        plt.plot([down_point[0], right_point[0]], [down_point[1], right_point[1]], linewidth=1, color='orange')
-        point = right_point.copy()
-    
-    plt.plot([point[0], point[0]], [point[1], 0], linewidth=1, color='orange')
-    plt.title("Supply and Demand from 07:00 to 08:00")
-    plt.xlabel("Quantity [MWh]")
-    plt.ylabel("Price [$/MWh]")
-    plt.axhline(ec.data.lambda_[T], color = 'black', linewidth=0.5, linestyle='--', label='Electricity Price')
-    plt.legend()
-    plt.show()
 
 if __name__ == "__main__":
     ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
@@ -365,7 +276,7 @@ if __name__ == "__main__":
     # ec.run()
     # ec.calculate_results()
     # ec.display_results()
-    ec = EconomicDispatch(n_hours=24, ramping=True, battery=False, hydrogen=True)
+    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True)
     ec.run()
     ec.calculate_results()
     ec.display_results()
