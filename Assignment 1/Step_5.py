@@ -90,13 +90,13 @@ class BalancingMarket(EconomicDispatch):
                 (self.data.generator_dispatch_values[g,self.hour] if g != 'G9' else 0)
             ) for g in self.GENERATORS
          }
-         
+
          self.bm_constraints.curtailment = self.bm_model.addConstr(
              self.bm_variables.demand_curt, gb.GRB.LESS_EQUAL, self.P_D_sum[self.hour]
          )
 
          self.bm_model.update()
-             
+
     def _save_bm_data(self):
         # Save objective value
         self.bm_data.objective_value = self.bm_model.objVal

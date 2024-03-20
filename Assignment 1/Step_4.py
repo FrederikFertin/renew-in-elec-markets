@@ -21,7 +21,10 @@ class NodalMarketClearing(Network, CommonMethods):
         self.H2 = True
         if not self.battery:
             self.BATTERIES = []
-        self.type = model_type
+        if model_type != 'nodal' and model_type != 'zonal':
+            raise ValueError('Model type should be either nodal or zonal')
+        else:
+            self.type = model_type
         self._build_model() # build gurobi model
     
     def _build_model(self):
@@ -85,7 +88,7 @@ class NodalMarketClearing(Network, CommonMethods):
         #     gb.GRB.EQUAL,
         #     0, name='Balance equation') for t in self.TIMES for n in self.NODES}
         if self.type == 'nodal':
-            self.constraints.lines = {(n,m,t): self.model.addLConstr(
+            self.constraints.lines = {(n,m,t): self.model.addConstr(
                 self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
                 gb.GRB.LESS_EQUAL,
                 self.L_cap[line],
@@ -97,16 +100,17 @@ class NodalMarketClearing(Network, CommonMethods):
                 name='Reference angle')
 
         # ramping constraints
-        self.add_ramping_constraints()
+        if self.ramping:
+            self.add_ramping_constraints()
 
         # battery constraints
-        self.add_battery_constraints()
+        if self.battery:
+            self.add_battery_constraints()
         
         # electrolyzer constraints
-        self.add_hydrogen_constraints()
+        if self.H2:
+            self.add_hydrogen_constraints()
 
-        # Write out model for debugging
-        self.model.write('model.lp')
     def _save_data(self):
         # save objective value
         self.data.objective_value = self.model.ObjVal
@@ -131,7 +135,8 @@ class NodalMarketClearing(Network, CommonMethods):
         # save uniform prices lambda 
         if self.type == 'nodal':
             self.data.lambda_ = {t:{n:self.constraints.balance_constraint[n,t].Pi for n in self.NODES} for t in self.TIMES}
-            self.data.theta = {n:{t:self.variables.theta[n,t].x for t in self.TIMES} for n in self.NODES}
+            self.data.theta = {t:{n:self.variables.theta[n,t].x for n in self.NODES} for t in self.TIMES}
+            self.data.loading = {t:{n: {m:self.constraints.lines[n,m,t].Pi for m in self.map_n[n].keys()} for n in self.NODES} for t in self.TIMES}
         elif self.type == 'zonal':
             self.data.lambda_ = {t:{z:self.constraints.balance_constraint[z,t].Pi for z in self.ZONES} for t in self.TIMES}
         
@@ -237,16 +242,18 @@ if __name__ == "__main__":
     ec.display_results()
     net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
-    drawLMP(net, ec.data.lambda_)
-    #ec.plot_prices()
+    #drawLMP(net, ec.data.lambda_)
+    ec.plot_prices()
+    """
     print("")
     print(ec.data.theta)
     # Plot values of theta
     if model_type == 'nodal':
         for node in ec.NODES:
-            theta_values = [ec.data.theta[node][t] for t in ec.TIMES]
+            theta_values = [ec.data.theta[t][node] for t in ec.TIMES]
             plt.plot(ec.TIMES, theta_values, label=node)
         plt.xlabel('Time')
         plt.ylabel('Voltage angle [rad]')
         plt.legend()
         plt.show()
+    """
