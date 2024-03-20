@@ -199,14 +199,14 @@ class ReserveAndDispatch(Network, CommonMethods):
     def plot_profit(self):
         # Plot grouped bar chart for all generators including wind with profit from reserves, dispatch and total profit.
         # Create a DataFrame for generator profits
-        gen_profits = pd.DataFrame([self.results.profits_G, self.data.reserve_profit, self.data.dispatch_profit], index=["Total", "Reserve", "Dispatch"]).T
+        gen_profits = pd.DataFrame([self.results.profits_G, self.data.reserve_profit, self.data.dispatch_profit], index=["Total", "Reserve", "Day-ahead"]).T
 
         # remove NaN values
 
         # Create a DataFrame for wind generator profits
         wind_profits = pd.DataFrame([self.results.profits_W], index=["Total"]).T
         wind_profits["Reserve"] = 0
-        wind_profits["Dispatch"] = wind_profits["Total"]
+        wind_profits["Day-ahead"] = wind_profits["Total"]
 
         # Concatenate the two DataFrames
         all_profits = pd.concat([gen_profits, wind_profits])
@@ -221,12 +221,25 @@ class ReserveAndDispatch(Network, CommonMethods):
         plt.ylabel("Profit [$]")
         plt.show()
 
+    def plot_prices(self):
+        # Plot reserve and market clearing prices
+        plt.step(ec.TIMES, list(ec.data.sigma_up_.values()), label='Up Reserve Price [$/MW]')
+        plt.step(ec.TIMES, list(ec.data.sigma_down_.values()), label='Down Reserve Price [$/MW]')
+        plt.step(ec.TIMES, list(ec.data.lambda_.values()), label='Day-ahead Price [$/MWh]')
+        plt.xlabel('Time')
+        plt.ylabel('Price')
+        plt.legend()
+        plt.show()
+        
+        
+        
 if __name__ == "__main__":
     ec = ReserveAndDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True, up_reserve=0.15, down_reserve=0.1)
     ec.run()
     ec.calculate_results()
     ec.display_results()
-    ec.plot_profit()
+    #ec.plot_profit()
+    ec.plot_prices()
 
     
 
