@@ -95,13 +95,16 @@ class NodalMarketClearing(Network, CommonMethods):
                 name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
         
         # ramping constraints
-        self.add_ramping_constraints()
+        if self.ramping:
+            self.add_ramping_constraints()
 
         # battery constraints
-        self.add_battery_constraints()
+        if self.battery:
+            self.add_battery_constraints()
         
         # electrolyzer constraints
-        self.add_hydrogen_constraints()
+        if self.H2:
+            self.add_hydrogen_constraints()
 
     def _save_data(self):
         # save objective value
@@ -226,7 +229,7 @@ class NodalMarketClearing(Network, CommonMethods):
         
 if __name__ == "__main__":
     
-    model_type='nodal'
+    model_type='zonal'
 
     ec = NodalMarketClearing(model_type)
     ec.run()
@@ -235,7 +238,8 @@ if __name__ == "__main__":
     #net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
     #drawLMP(net, ec.data.lambda_)
-    #ec.plot_prices()
+    ec.plot_prices()
+    """
     print("")
     print(ec.data.theta)
     # Plot values of theta
@@ -247,3 +251,4 @@ if __name__ == "__main__":
         plt.ylabel('Voltage angle [rad]')
         plt.legend()
         plt.show()
+    """

@@ -51,6 +51,23 @@ class ReserveAndDispatch(Network, CommonMethods):
         
         self.constraints.reserve_down = {(t):self.model.addConstr(gb.quicksum(self.variables.generator_down[g,t] for g in self.GENERATORS), gb.GRB.EQUAL, self.down_reserve * total_demand[t]) for t in self.TIMES}
         
+        # Ramping constraints, up reserve
+        self.constraints.reserve_up_ramping_dw = {(g,t):self.model.addConstr(
+            self.variables.generator_up[g,t] - self.variables.generator_up[g,self.TIMES[n]],
+            gb.GRB.GREATER_EQUAL, -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+        self.constraints.reserve_up_ramping_up = {(g,t):self.model.addConstr(
+            self.variables.generator_up[g,t] - self.variables.generator_up[g,self.TIMES[n]],
+            gb.GRB.LESS_EQUAL, self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+        
+        # Ramping constraints, down reserve
+        self.constraints.reserve_down_ramping_dw = {(g,t):self.model.addConstr(
+            self.variables.generator_down[g,t] - self.variables.generator_down[g,self.TIMES[n]],
+            gb.GRB.GREATER_EQUAL, -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+        self.constraints.reserve_down_ramping_up = {(g,t):self.model.addConstr(
+            self.variables.generator_down[g,t] - self.variables.generator_down[g,self.TIMES[n]],
+            gb.GRB.LESS_EQUAL, self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+
+
         # Capacity constraints
         self.constraints.capacity = {(g,t):self.model.addConstr(self.variables.generator_up[g,t] + self.variables.generator_down[g,t], gb.GRB.LESS_EQUAL, self.P_G_max[g]) for g in self.GENERATORS for t in self.TIMES}
         
@@ -142,14 +159,13 @@ class ReserveAndDispatch(Network, CommonMethods):
         # save profits of suppliers
         self.data.dispatch_profit = {g:sum((self.data.lambda_[t] - self.C_G_offer[g]) * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
         
-    def run_reserve(self):
-        self.model.optimize()
-        self._save_reserve()
-        self._build_model() # build dispatch model using reserve results
     
     def run(self):
-        self.model.optimize()
-        self._save_data()
+        self.model.optimize() # Clear reserve market
+        self._save_reserve()  # save reserve results
+        self._build_model()   # build dispatch model using reserve results
+        self.model.optimize() # Clear dispatch market
+        self._save_data()     # save dispatch results
 
     def calculate_results(self):
         # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
@@ -180,55 +196,43 @@ class ReserveAndDispatch(Network, CommonMethods):
         print("Utility of demands: ")
         print(self.results.utilities)
 
+    def plot_profit(self):
+        # Plot grouped bar chart for all generators including wind with profit from reserves, dispatch and total profit.
+        # Create a DataFrame for generator profits
+        gen_profits = pd.DataFrame([self.results.profits_G, self.data.reserve_profit, self.data.dispatch_profit], index=["Total", "Reserve", "Dispatch"]).T
+
+        # remove NaN values
+
+        # Create a DataFrame for wind generator profits
+        wind_profits = pd.DataFrame([self.results.profits_W], index=["Total"]).T
+        wind_profits["Reserve"] = 0
+        wind_profits["Dispatch"] = wind_profits["Total"]
+
+        # Concatenate the two DataFrames
+        all_profits = pd.concat([gen_profits, wind_profits])
+
+        # Remove generators with no profit
+        all_profits = all_profits.loc[all_profits["Total"] > 0]
+
+        # Plot the profits
+        all_profits.plot(kind='bar')
+        plt.title("Profits of generators and wind turbines")
+        plt.xlabel("Generator / Wind Turbine")
+        plt.ylabel("Profit [$]")
+        plt.show()
+
 if __name__ == "__main__":
     ec = ReserveAndDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True, up_reserve=0.15, down_reserve=0.1)
-    ec.run_reserve()
     ec.run()
     ec.calculate_results()
     ec.display_results()
+    ec.plot_profit()
 
     
-    # Plot dispatch of generators with reserves in shaded area around the dispatch
-    for g in ec.GENERATORS:
-        plt.plot(ec.TIMES, [ec.data.generator_dispatch_values[g,t] for t in ec.TIMES], label=g)
-        plt.fill_between(ec.TIMES, [ec.data.generator_dispatch_values[g,t] - ec.data.down_reserve_values[g,t] for t in ec.TIMES], 
-                         [ec.data.generator_dispatch_values[g,t] + ec.data.up_reserve_values[g,t] for t in ec.TIMES], alpha=0.2)
-    plt.title("Dispatch of generators with reserves")
-    plt.xlabel("Time")
-    plt.ylabel("Dispatch [MW]")
-    plt.legend()
-    plt.show()
-
-    # Plot bar chart of profits for all suppliers
-    plt.bar(ec.results.profits_G.keys(), ec.results.profits_G.values(), label="Generators")
-    plt.bar(ec.results.profits_W.keys(), ec.results.profits_W.values(), label="Wind turbines")
-    plt.title("Profits of suppliers")
-    plt.xlabel("Supplier")
-    plt.ylabel("Profit [$]")
-    plt.legend()
-    plt.show()
 
 
-    # Plot grouped bar chart for all generators including wind with profit from reserves, dispatch and total profit.
-    # Create a DataFrame for generator profits
-    gen_profits = pd.DataFrame([ec.results.profits_G, ec.data.reserve_profit, ec.data.dispatch_profit], index=["Total", "Reserve", "Dispatch"]).T
+    
 
-    # Create a DataFrame for wind generator profits
-    wind_profits = pd.DataFrame([ec.results.profits_W], index=["Total"]).T
-    wind_profits["Reserve"] = 0
-    wind_profits["Dispatch"] = wind_profits["Total"]
-
-    # Concatenate the two DataFrames
-    all_profits = pd.concat([gen_profits, wind_profits])
-
-    # Plot the profits
-    all_profits.plot(kind='bar')
-    plt.title("Profits of generators and wind turbines")
-    plt.xlabel("Generator / Wind Turbine")
-    plt.ylabel("Profit [$]")
-    plt.show()
-
-    all_profits.to_csv("profits.csv") # save profits to csv file
     
     
 
