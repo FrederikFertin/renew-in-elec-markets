@@ -5,11 +5,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from Step_2 import CommonMethods
 from network_plots import plot_SD_curve
+import os
 
 class Network:
     # Reading data from Excel, requires openpyxl
-    
-    xls = pd.ExcelFile('Assignment 1/data.xlsx')
+    cwd = os.getcwd()
+    xls = pd.ExcelFile(cwd + '/data.xlsx')
     #xls = pd.ExcelFile('data.xlsx')
     gen_tech = pd.read_excel(xls, 'gen_technical')
     gen_econ = pd.read_excel(xls, 'gen_cost')
@@ -19,7 +20,7 @@ class Network:
     wind_tech = pd.read_excel(xls, 'wind_technical')
 
     # Loading csv file of normalized wind profiles
-    wind_profiles = pd.read_csv('Assignment 1/wind_profiles.csv')
+    wind_profiles = pd.read_csv(cwd + '/wind_profiles.csv')
     #wind_profiles = pd.read_csv('wind_profiles.csv')
 
     # Number of each type of unit/identity
@@ -54,7 +55,7 @@ class Network:
     P_R_MINUS = dict(zip(GENERATORS, gen_tech['R_minus'])) # Down reserve capacity
     C_U = dict(zip(GENERATORS, gen_econ['C_u'])) # Up reserve cost
     C_D = dict(zip(GENERATORS, gen_econ['C_d'])) # Down reserve cost
-    
+
     
     ## Demand Information
     P_D_sum = dict(zip(TIMES, system_demand['System_demand'])) # Total system demands
@@ -67,6 +68,7 @@ class Network:
     U_D['T9']['D13'] = 10.2
     U_D['T9']['D16'] = 7.0
     node_D = dict(zip(DEMANDS, load_info['Node'])) # Load node placements
+    U_D_curt = 400 # cost of demand curtailment in BM [$/MWh]
     
     ## Wind Turbine Information
     p_W_cap = 200 # Wind farm capacities (MW)
@@ -280,7 +282,7 @@ if __name__ == "__main__":
     ec.run()
     ec.calculate_results()
     ec.display_results()
-    
+
     plot_SD_curve(ec, 'T8')
 
 
