@@ -102,8 +102,8 @@ class Network:
     c_z2_z3 = L_cap['L7'] + L_cap['L14'] + L_cap['L15'] + L_cap['L16'] + L_cap['L17']
     ZONES = ['Z1', 'Z2', 'Z3']
     zone_cap = {'Z1': {'Z2': c_z1_z2},
-                  'Z2': {'Z1': c_z1_z2, 'Z3': c_z2_z3},
-                  'Z3': {'Z2': c_z2_z3}}
+                'Z2': {'Z1': c_z1_z2, 'Z3': c_z2_z3},
+                'Z3': {'Z2': c_z2_z3}}
     zonal = {'Z1': ['Z12'],
              'Z2': ['Z12', 'Z23'],
              'Z3': ['Z23']}
