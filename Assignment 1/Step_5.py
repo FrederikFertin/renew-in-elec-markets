@@ -165,6 +165,7 @@ class BalancingMarket(EconomicDispatch):
             raise NotImplementedError
 
     def display_results(self):
+        """
         print("Modified values for Hour 10:")
         for g in self.GENERATORS:
             print(f"Generator Dispatch for {g}:", self.variables.generator_dispatch[g, self.hour].x)
@@ -183,7 +184,16 @@ class BalancingMarket(EconomicDispatch):
     #         print(self.results.upward_service)
     #         print("Downward Balancing Services:")
     #         print(self.results.downward_service)
-
+    """
+        print()
+        print("-------------------   RESULTS  -------------------")
+        print("Balancing prices: " + str(self.data.lambda_))
+        print()
+        print("Profit of suppliers: ")
+        print("Generators:")
+        print(self.bm_results.profits_G)
+        print("Wind turbines:")
+        print(self.bm_results.profits_W)
 
 if __name__ == "__main__":
     bm = BalancingMarket(ramping=False, battery=False, hydrogen=False, hour='T10')
@@ -192,10 +202,7 @@ if __name__ == "__main__":
     # Now we clear the BM
     bm._build_bm_model()
     bm.clear_bm()
-    bm.calculate_bm_results(pricing_scheme='two-price')
+    bm.calculate_bm_results(pricing_scheme='one-price')
     bm.display_results()
-
-
-
 
 

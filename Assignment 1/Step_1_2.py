@@ -286,7 +286,7 @@ if __name__ == "__main__":
     # ec.run()
     # ec.calculate_results()
     # ec.display_results()
-    ec = EconomicDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True)
+    ec = EconomicDispatch(n_hours=24, ramping=False, battery=False, hydrogen=False)
     ec.run()
     ec.calculate_results()
     ec.display_results()
