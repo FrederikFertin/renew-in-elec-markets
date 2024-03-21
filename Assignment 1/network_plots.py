@@ -74,7 +74,8 @@ def drawNormal(net):
     plt.title("Network", fontsize=30)
     plt.legend()
     plt.show()
-    
+
+
 def drawSingleStep(net, p_G, p_W, LMP):
     
     size = 5
@@ -119,6 +120,30 @@ def drawLMP(net, lambda_):
         
         plot.draw_collections([d_c, gen_c, wind_c, lc, bc])
         plt.title('Network LMPs ' + str(t), fontsize=20)
+        plt.show()
+
+def drawTheta(net, theta_):
+    
+    size = 5
+    
+    d_c = plot.create_load_collection(net, loads=net.load.index, size=size)
+    gen_c = plot.create_gen_collection(net, gens=net.gen.index, size=size, orientation=0)
+    wind_c = plot.create_ext_grid_collection(net, ext_grids=net.ext_grid.index, size=size, orientation=3.14/2)
+    
+    lc = plot.create_line_collection(net, lines=net.line.index, zorder=1,\
+                        use_bus_geodata=True,color='grey')
+        
+    for t, thetas_t in theta_.items():
+        
+        u_t = list(thetas_t.values())
+        
+        cmap = plt.get_cmap('rainbow')
+        norm = Normalize(-2, 4)
+        bc = plot.create_bus_collection(net, buses=net.bus.index, size=size, 
+                zorder=1, z=u_t, cmap=cmap, norm=norm, cbar_title="Node Voltage Angle [Rad]")# ,use_bus_geodata=True)
+        
+        plot.draw_collections([d_c, gen_c, wind_c, lc, bc])
+        plt.title('Network Voltage Angles ' + str(t), fontsize=20)
         plt.show()
 
 def plot_SD_curve(ec, T):
