@@ -2,7 +2,7 @@ import gurobipy as gb
 from gurobipy import GRB
 
 class CommonMethods:
-    def add_ramping_constraints(self):
+    def _add_ramping_constraints(self):
         self.constraints.ramping_dw = {(g,t):self.model.addConstr(
             self.variables.generator_dispatch[g,t] - self.variables.generator_dispatch[g,self.TIMES[n]],
             gb.GRB.GREATER_EQUAL,
@@ -13,7 +13,7 @@ class CommonMethods:
             self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
 
 
-    def add_battery_constraints(self):
+    def _add_battery_constraints(self):
         # soc constraint
         self.constraints.batt_soc = {(b,t):self.model.addLConstr(self.variables.battery_soc[b,t], 
         gb.GRB.EQUAL,
@@ -31,7 +31,7 @@ class CommonMethods:
             for b in self.BATTERIES}
 
 
-    def add_hydrogen_constraints(self):
+    def _add_hydrogen_constraints(self):
         self.constraints.hydrogen_limit = {(w,t):self.model.addLConstr(
             self.variables.hydrogen[w,t],
             gb.GRB.LESS_EQUAL,
@@ -44,7 +44,7 @@ class CommonMethods:
             for w in self.WINDTURBINES}
         
 
-    def add_balance_constraints(self):
+    def _add_balance_constraints(self):
         balance_constraints = {}
 
         for t in self.TIMES: # Add one balance constraint for each hour

@@ -176,7 +176,7 @@ class ReserveAndDispatch(Network, CommonMethods):
         print(self.results.utilities)
 
 if __name__ == "__main__":
-    ec = ReserveAndDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True, up_reserve=0.15, down_reserve=0.1)
+    ec = ReserveAndDispatch(n_hours=24, ramping=False, battery=False, hydrogen=Flase, up_reserve=0.15, down_reserve=0.1)
     ec.run_reserve()
     ec.run()
     ec.calculate_results()
@@ -191,6 +191,7 @@ if __name__ == "__main__":
     plt.title("Dispatch of generators with reserves")
     plt.xlabel("Time")
     plt.ylabel("Dispatch [MW]")
+    plt.xticks(rotation=45)
     plt.legend()
     plt.show()
     

@@ -90,9 +90,9 @@ class Network:
     batt_eta = {'B1': 0.99} # Battery charging and discharging efficiency of 95%
 
     ## Transmission Line Information
-    L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
+    L_cap = dict(zip(LINES, line_info['Capacity'])) # Capacity of transmission line [MVA]
     # R_base = 
-    L_susceptance = dict(zip(LINES, 1/line_info['Reactance'])) # [500 for i in LINES])) Susceptance of transmission line [pu.]
+    L_susceptance = dict(zip(LINES, [500 for i in LINES])) # 1/line_info['Reactance'])) #  Susceptance of transmission line [pu.] 
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
     L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
     
@@ -203,19 +203,19 @@ class EconomicDispatch(Network, CommonMethods):
         
         # Balance constraints
         # Evaluates based on the values of self.battery and self.H2
-        self.constraints.balance_constraint = self.add_balance_constraints()
+        self.constraints.balance_constraint = self._add_balance_constraints()
         
         # ramping constraints
         if self.ramping:
-            self.add_ramping_constraints()
+            self._add_ramping_constraints()
 
         # battery constraints
         if self.battery:
-            self.add_battery_constraints()
+            self._add_battery_constraints()
         
         # electrolyzer constraints
         if self.H2:
-            self.add_hydrogen_constraints()
+            self._add_hydrogen_constraints()
         
     def _save_data(self):
         # save objective value
@@ -229,10 +229,17 @@ class EconomicDispatch(Network, CommonMethods):
         
         # save wind turbine dispatches 
         self.data.wind_dispatch_values = {(w,t):self.variables.wind_turbines[w,t].x for w in self.WINDTURBINES for t in self.TIMES}
-        
-        # save battery dispatches 
+
+        # save up and down regulation constraints        
+        if self.ramping:
+            self.data.ramping_up_dual = {t : {g:self.constraints.ramping_up[g,t].Pi for g in self.GENERATORS} for t in self.TIMES[1:]}
+            self.data.ramping_dw_dual = {t : {g:self.constraints.ramping_dw[g,t].Pi for g in self.GENERATORS} for t in self.TIMES[1:]}
+
+        # save battery dispatches
         if self.battery:
             self.data.battery = {(b,t):self.variables.battery_ch[b,t].x - self.variables.battery_dis[b,t].x for b in self.BATTERIES for t in self.TIMES}
+            self.data.battery_soc = {(b,t):self.variables.battery_soc[b,t].x for b in self.BATTERIES for t in self.TIMES}
+            self.data.battery_soc_constraint = {(b,t):self.constraints.batt_soc[b,t].Pi for t in self.TIMES[1:] for b in self.BATTERIES}
         
         # save electrolyzer activity
         if self.H2:
@@ -262,16 +269,16 @@ class EconomicDispatch(Network, CommonMethods):
         print("Social welfare: " + str(self.data.objective_value))
         print()
         print("Profit of suppliers: ")
-        print("Generators:")
+        print("Generators: ")
         print(self.results.profits_G)
-        print("Wind turbines:")
+        print("Wind turbines: ")
         print(self.results.profits_W)
         print()
         print("Utility of demands: ")
         print(self.results.utilities)
 
 if __name__ == "__main__":
-    ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
+    #ec = EconomicDispatch(n_hours=1, ramping=False, battery=False, hydrogen=False)
 
     # ec.run()
     # ec.calculate_results()
@@ -281,7 +288,10 @@ if __name__ == "__main__":
     ec.calculate_results()
     ec.display_results()
     
-    plot_SD_curve(ec, 'T8')
+    #print(ec.data.battery)
+    #plot_SD_curve(ec, 'T16')
+
+
 
 
     """"

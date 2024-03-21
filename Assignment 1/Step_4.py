@@ -5,20 +5,20 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from Step_1_2 import Network, expando
 from Step_2 import CommonMethods
-from network_plots import createNetwork, drawNormal, drawSingleStep, drawLMP
+from network_plots import createNetwork, drawNormal, drawSingleStep, drawLMP, drawTheta
 
 class NodalMarketClearing(Network, CommonMethods):
     
-    def __init__(self, model_type: str): # initialize class
+    def __init__(self, model_type: str, ramping: bool, battery: bool, hydrogen: bool): # initialize class
         super().__init__()
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
         self.constraints = expando() # build sontraint attributes
         self.results = expando()
-        self.ramping = True
-        self.battery = True
-        self.H2 = True
+        self.ramping = ramping
+        self.battery = battery
+        self.H2 = hydrogen
         if not self.battery:
             self.BATTERIES = []
         if model_type != 'nodal' and model_type != 'zonal':
@@ -31,12 +31,12 @@ class NodalMarketClearing(Network, CommonMethods):
         # initialize optimization model
         self.model = gb.Model(name='Economic Dispatch')
         
-        # initialize variables 
+        # initialize variables      
         self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[t][d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.type == 'nodal':
-            self.variables.theta = {(n,t):self.model.addVar(name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
+            self.variables.theta = {(n,t):self.model.addVar(lb=-GRB.INFINITY,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
         elif self.type == 'zonal':
             self.variables.ic = {(ic,t):self.model.addVar(lb=-self.ic_cap[ic],ub=self.ic_cap[ic],name='interconnector flow {0}'.format(ic)) for ic in self.INTERCONNECTORS for t in self.TIMES}
         if self.H2:
@@ -58,50 +58,112 @@ class NodalMarketClearing(Network, CommonMethods):
         
         # balance constraint
         if self.type == 'nodal':
-            self.constraints.balance_constraint = {(n,t):self.model.addLConstr(
-                gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
-                - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
-                - gb.quicksum(self.variables.wind_turbines[w,t] for w in self.map_w[n])
-                + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t]
-                                  for b in self.map_b[n])
-                + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
-                gb.GRB.EQUAL,
-                0, name='Balance equation') for t in self.TIMES for n in self.NODES}
-        
+            self.constraints.balance_constraint = self._add_nodal_balance_constraints()
         elif self.type == 'zonal':
-            self.constraints.balance_constraint = {(z,t):self.model.addLConstr(
-                gb.quicksum(self.variables.consumption[d,t] for n in self.map_z[z] for d in self.map_d[n])
-                - gb.quicksum(self.variables.generator_dispatch[g,t] for n in self.map_z[z] for g in self.map_g[n])
-                - gb.quicksum(self.variables.wind_turbines[w,t] for n in self.map_z[z] for w in self.map_w[n])
-                + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] for n in self.map_z[z] for b in self.map_b[n])
-                + gb.quicksum(self.variables.ic[ic,t] for ic in self.zonal[z]) * ((-1) if z == 'Z2' else 1), # direction of ic is towards zone Z2.
-                gb.GRB.EQUAL,
-                0, name='Balance equation') for t in self.TIMES for z in self.ZONES}
+            self.constraints.balance_constraint = self._add_zonal_balance_constraints()
         
-        # self.constraints.balance_constraint = {t:self.model.addLConstr(
-        #     gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
-        #     - gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
-        #     - gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t] for w in self.map_w[n])
-        #     + gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t]
-        #                   for b in self.map_b[n])
-        #     + gb.quicksum(self.L_susceptance[line]*(self.variables.theta[n,t] - self.variables.theta[m,t]) for m, line in self.map_n[n].items()),
-        #     gb.GRB.EQUAL,
-        #     0, name='Balance equation') for t in self.TIMES for n in self.NODES}
+        # Line capacity constraints
         if self.type == 'nodal':
-            self.constraints.lines = {(n,m,t): self.model.addConstr(
+            self._add_line_capacity_constraints()
+        
+        # ramping constraints
+        if self.ramping:
+            self._add_ramping_constraints()
+
+        # battery constraints
+        if self.battery:
+            self._add_battery_constraints()
+        
+        # electrolyzer constraints
+        if self.H2:
+            self._add_hydrogen_constraints()
+
+    def _add_nodal_balance_constraints(self):
+        balance_constraints = {}
+
+        for t in self.TIMES: # Add one balance constraint for each hour
+            balance_constraints[t] = {}
+            for n in self.NODES:
+                # Contribution of generators
+                generator_expr = gb.quicksum(self.variables.generator_dispatch[g,t] for g in self.map_g[n])
+
+                # Contribution of demands
+                demand_expr = gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
+
+                # Contribution of wind farms
+                wind_expr = gb.quicksum(self.variables.wind_turbines[w,t] for w in self.map_w[n])
+                if self.H2:
+                    # Contribution of wind farms with hydrogen production
+                    wind_expr = gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t]
+                                for w in self.map_w[n])
+                
+                # Contribution of batteries
+                batt_expr = 0
+                if self.battery:
+                    batt_expr = gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t] 
+                                for b in self.map_b[n])
+                
+                # Import of power through lines
+                line_expr = gb.quicksum(self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t])
+                                        for m, line in self.map_n[n].items())
+
+                # Central balance constraint
+                balance_constraints[t][n] = self.model.addLConstr(
+                                            demand_expr - generator_expr - wind_expr + batt_expr + line_expr,
+                                            gb.GRB.EQUAL,
+                                            0, name='Balance equation')
+            
+        return balance_constraints
+        
+    def _add_zonal_balance_constraints(self):
+        balance_constraints = {}
+
+        for t in self.TIMES: # Add one balance constraint for each hour
+            balance_constraints[t] = {}
+            for z in self.ZONES:
+                # Contribution of generators
+                generator_expr = gb.quicksum(self.variables.generator_dispatch[g,t]
+                                             for n in self.map_z[z] for g in self.map_g[n])
+
+                # Contribution of demands
+                demand_expr = gb.quicksum(self.variables.consumption[d,t]
+                                          for n in self.map_z[z] for d in self.map_d[n])
+
+                # Contribution of wind farms
+                wind_expr = gb.quicksum(self.variables.wind_turbines[w,t]
+                                        for n in self.map_z[z] for w in self.map_w[n])
+                if self.H2:
+                    # Contribution of wind farms with hydrogen production
+                    wind_expr = gb.quicksum(self.variables.wind_turbines[w,t] - self.variables.hydrogen[w,t]
+                                            for n in self.map_z[z] for w in self.map_w[n])
+                
+                # Contribution of batteries
+                batt_expr = 0
+                if self.battery:
+                    gb.quicksum(self.variables.battery_ch[b,t] - self.variables.battery_dis[b,t]
+                                for n in self.map_z[z] for b in self.map_b[n])
+                
+                # Import of power through interconnectors
+                ic_expr = gb.quicksum(self.variables.ic[ic,t]
+                                      for ic in self.zonal[z]) * ((-1) if z == 'Z2' else 1) # direction of ic is towards zone Z2
+
+                # Central balance constraint
+                balance_constraints[t][z] = self.model.addLConstr(
+                                            demand_expr - generator_expr - wind_expr + batt_expr + ic_expr,
+                                            gb.GRB.EQUAL,
+                                            0, name='Balance equation')
+            
+        return balance_constraints
+    
+    def _add_line_capacity_constraints(self):
+        # Line capacity constraints - runs through each line twice, once for each direction.
+        # Thus only the max capacity is enforced.
+        self.constraints.lines = {(n,m,t): self.model.addConstr(
                 self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
                 gb.GRB.LESS_EQUAL,
                 self.L_cap[line],
                 name='Line limit') for n in self.NODES for t in self.TIMES for m, line in self.map_n[n].items()}
-        
-        # ramping constraints
-        self.add_ramping_constraints()
-
-        # battery constraints
-        self.add_battery_constraints()
-        
-        # electrolyzer constraints
-        self.add_hydrogen_constraints()
+        self.constraints.theta_ref = {t : self.model.addLConstr(self.variables.theta['N1',t], gb.GRB.EQUAL, 0, name='reference angle') for t in self.TIMES}
 
     def _save_data(self):
         # save objective value
@@ -126,11 +188,11 @@ class NodalMarketClearing(Network, CommonMethods):
 
         # save uniform prices lambda 
         if self.type == 'nodal':
-            self.data.lambda_ = {t:{n:self.constraints.balance_constraint[n,t].Pi for n in self.NODES} for t in self.TIMES}
+            self.data.lambda_ = {t:{n:self.constraints.balance_constraint[t][n].Pi for n in self.NODES} for t in self.TIMES}
             self.data.theta = {t:{n:self.variables.theta[n,t].x for n in self.NODES} for t in self.TIMES}
             self.data.loading = {t:{n: {m:self.constraints.lines[n,m,t].Pi for m in self.map_n[n].keys()} for n in self.NODES} for t in self.TIMES}
         elif self.type == 'zonal':
-            self.data.lambda_ = {t:{z:self.constraints.balance_constraint[z,t].Pi for z in self.ZONES} for t in self.TIMES}
+            self.data.lambda_ = {t:{z:self.constraints.balance_constraint[t][z].Pi for z in self.ZONES} for t in self.TIMES}
         
     def run(self):
         self.model.optimize()
@@ -228,16 +290,17 @@ if __name__ == "__main__":
     
     model_type='nodal'
 
-    ec = NodalMarketClearing(model_type)
+    ec = NodalMarketClearing(model_type, ramping=False, battery=False, hydrogen=False)
     ec.run()
     ec.calculate_results()
     ec.display_results()
-    #net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
+    net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
     #drawLMP(net, ec.data.lambda_)
-    #ec.plot_prices()
-    print("")
-    print(ec.data.theta)
+    drawTheta(net, ec.data.theta)
+    ec.plot_prices()
+    
+    
     # Plot values of theta
     if model_type == 'nodal':
         for node in ec.NODES:

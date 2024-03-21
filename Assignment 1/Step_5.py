@@ -79,22 +79,22 @@ class BalancingMarket(EconomicDispatch, Network, CommonMethods):
         )
 
          
-         self.constraints.upregulation = {
+        self.constraints.upregulation = {
             (g,'T10'): self.model.addConstr(self.variables.upregulation[g,'T10'], gb.GRB.LESS_EQUAL, self.P_G_max[g] - self.data.generator_dispatch_values[g,'T10'])
             for g in self.GENERATORS
         }
          
-         self.constraints.downregulation = {
+        self.constraints.downregulation = {
             (g,'T10'): self.model.addConstr(self.variables.downregulation[g,'T10'], gb.GRB.LESS_EQUAL, self.data.generator_dispatch_values[g,'T10'])
             for g in self.GENERATORS
         }
          
-         self.constraints.curtailment = {
+        self.constraints.curtailment = {
             (d,'T10'): self.model.addConstr(self.variables.demand_curt[d,'T10'], gb.GRB.LESS_EQUAL, self.P_D['T10'][d])
             for d in self.DEMANDS
         }
          
-         self.model.update()
+        self.model.update()
              
     def _save_data(self):
         self.data.objective_value = self.model.objVal
