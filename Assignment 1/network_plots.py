@@ -10,17 +10,18 @@ import csv
 from matplotlib.colors import Normalize
 from matplotlib import rcParams
 import datetime as dt
+import os
 
  
 
 def createNetwork(mapping_gen, mapping_loads, mapping_wind):
     # create empty net
     net = pp.create_empty_network()
-
-    bus_map = pd.read_csv('Assignment 1/bus_map.csv', delimiter=';')
+    cwd = os.getcwd()
+    bus_map = pd.read_csv(cwd + '/bus_map.csv', delimiter=';')
     #bus_map = pd.read_csv('bus_map.csv', delimiter=';')
     
-    line_map = pd.read_csv('Assignment 1/lines.csv', delimiter=';')
+    line_map = pd.read_csv(cwd + '/lines.csv', delimiter=';')
     #line_map = pd.read_csv('lines.csv', delimiter=';')
     
     # Create buses
@@ -113,9 +114,9 @@ def drawLMP(net, lambda_):
         lmp_t = list(lambdas_t.values())
         
         cmap = plt.get_cmap('rainbow')
-        norm = Normalize(4,14)
+        norm = Normalize(0,20)
         bc = plot.create_bus_collection(net, buses=net.bus.index, size=size, 
-                zorder=1, z=lmp_t, cmap=cmap, norm=norm, cbar_title="Node LMP [DKK]")# ,use_bus_geodata=True)
+                zorder=1, z=lmp_t, cmap=cmap, norm=norm, cbar_title="Node LMP [$/MWh]")# ,use_bus_geodata=True)
         
         plot.draw_collections([d_c, gen_c, wind_c, lc, bc])
         plt.title('Network LMPs ' + str(t), fontsize=20)
