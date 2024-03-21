@@ -151,12 +151,12 @@ class BalancingMarket(EconomicDispatch):
                     - self.bm_data.lambda_ * 0.1 * self.data.wind_dispatch_values[w, self.hour] for w in ['W1', 'W2']
                 }
                 for w in ['W4', 'W6']:
-                    self.bm_results.profits_W[w] = self.data.lambda_ * 0.15 * self.data.wind_dispatch_values[w, self.hour]
+                    self.bm_results.profits_W[w] = self.data.lambda_[self.hour] * 0.15 * self.data.wind_dispatch_values[w, self.hour]
             else:
-                self.bm_results.profits_G['G9'] = - self.data.lambda_ * self.data.generator_dispatch_values[
+                self.bm_results.profits_G['G9'] = - self.data.lambda_[self.hour] * self.data.generator_dispatch_values[
                     'G9', self.hour]
                 self.bm_results.profits_W = {w:
-                    - self.data.lambda_ * 0.1 * self.data.wind_dispatch_values[w, self.hour] for w in ['W1', 'W2']
+                    - self.data.lambda_[self.hour] * 0.1 * self.data.wind_dispatch_values[w, self.hour] for w in ['W1', 'W2']
                 }
                 for w in ['W4', 'W6']:
                     self.bm_results.profits_W[w] = self.bm_data.lambda_ * 0.15 * self.data.wind_dispatch_values[w, self.hour]
