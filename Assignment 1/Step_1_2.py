@@ -43,6 +43,8 @@ class Network:
     map_z = {'Z1': ['N17', 'N18', 'N21', 'N22'],
              'Z2': ['N11', 'N12', 'N13', 'N14', 'N15', 'N16', 'N19', 'N20', 'N23', 'N24'],
              'Z3': ['N{0}'.format(t) for t in range(1, 11)]}
+
+    map_nz = {n: z for z, ns in map_z.items() for n in ns}
     
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.

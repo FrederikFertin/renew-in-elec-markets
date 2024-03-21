@@ -206,7 +206,7 @@ class NodalMarketClearing(Network, CommonMethods):
             self.results.profits_W = {w:sum(self.data.lambda_[t][n] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for n in self.NODES) for w in self.WINDTURBINES}
             self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t][n]) * self.data.consumption_values[d,t] for t in self.TIMES for n in self.NODES) for d in self.DEMANDS}
         elif self.type == 'zonal':
-            self.results.profits_G = {g:sum((self.data.lambda_[t][z] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES for z in self.ZONES) for g in self.GENERATORS}
+            self.results.profits_G = {g:sum((self.data.lambda_[t][self.map_nz['N'+str(self.node_G[g])]] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
             self.results.profits_W = {w:sum(self.data.lambda_[t][z] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for z in self.ZONES) for w in self.WINDTURBINES}
             self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t][z]) * self.data.consumption_values[d,t] for t in self.TIMES for z in self.ZONES) for d in self.DEMANDS}
 
@@ -291,9 +291,9 @@ class NodalMarketClearing(Network, CommonMethods):
 if __name__ == "__main__":
     
     model_type='zonal'
-    ic_cap = {'Z12': 950, 'Z23': 2000} # Line can be increased to just 1000 MW to avoid congestion
+    #ic_cap = {'Z12': 950, 'Z23': 2000} # Line can be increased to just 1000 MW to avoid congestion
     #ic_cap = {'Z12': 900, 'Z23': 850} # line must be under 900 MW to create congestion
-    #ic_cap = None
+    ic_cap = None
 
     ec = NodalMarketClearing(model_type, ramping=True, battery=True, hydrogen=True, ic_cap=ic_cap)
     ec.run()
