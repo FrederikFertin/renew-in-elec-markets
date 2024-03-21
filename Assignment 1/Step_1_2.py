@@ -43,6 +43,8 @@ class Network:
     map_z = {'Z1': ['N17', 'N18', 'N21', 'N22'],
              'Z2': ['N11', 'N12', 'N13', 'N14', 'N15', 'N16', 'N19', 'N20', 'N23', 'N24'],
              'Z3': ['N{0}'.format(t) for t in range(1, 11)]}
+
+    map_nz = {n: z for z, ns in map_z.items() for n in ns}
     
     ## Conventional Generator Information
     P_G_max = dict(zip(GENERATORS, gen_tech['P_max'])) # Max generation cap.
@@ -88,7 +90,6 @@ class Network:
     batt_init_soc = {'B1': 200} # Initial state of charge of battery - at time t-1 (T0)
     batt_power = {'B1': 200} # Battery (dis)charging limit is 200 MW
     batt_node = {'B1': 11} # Battery is placed at node 11
-    batt_eta = {'B1': 0.95} # Battery charging and discharging efficiency of 95%
     batt_eta = {'B1': 0.99} # Battery charging and discharging efficiency of 95%
 
     ## Transmission Line Information
@@ -99,11 +100,11 @@ class Network:
     
     ## Inter-Zonal capacitances
     c_z1_z2 = L_cap['L25'] + L_cap['L27']
-    c_z2_z3 = 2000
+    c_z2_z3 = L_cap['L7'] + L_cap['L14'] + L_cap['L15'] + L_cap['L16'] + L_cap['L17']
     ZONES = ['Z1', 'Z2', 'Z3']
     zone_cap = {'Z1': {'Z2': c_z1_z2},
-                  'Z2': {'Z1': c_z1_z2, 'Z3': c_z2_z3},
-                  'Z3': {'Z2': c_z2_z3}}
+                'Z2': {'Z1': c_z1_z2, 'Z3': c_z2_z3},
+                'Z3': {'Z2': c_z2_z3}}
     zonal = {'Z1': ['Z12'],
              'Z2': ['Z12', 'Z23'],
              'Z3': ['Z23']}

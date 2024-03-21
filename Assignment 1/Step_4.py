@@ -9,7 +9,7 @@ from network_plots import createNetwork, drawNormal, drawLMP, drawTheta
 
 class NodalMarketClearing(Network, CommonMethods):
     
-    def __init__(self, model_type: str, ramping: bool, battery: bool, hydrogen: bool): # initialize class
+    def __init__(self, model_type: str, ramping: bool, battery: bool, hydrogen: bool, ic_cap = None): # initialize class
         super().__init__()
         
         self.data = expando() # build data attributes
@@ -25,9 +25,11 @@ class NodalMarketClearing(Network, CommonMethods):
             raise ValueError('Model type should be either nodal or zonal')
         else:
             self.type = model_type
-        #self._build_model() # build gurobi model
+        if ic_cap is not None:
+            self.ic_cap = ic_cap
+        self._build_model() # build gurobi model
     
-    def build_model(self):
+    def _build_model(self):
         # initialize optimization model
         self.model = gb.Model(name='Economic Dispatch')
         
@@ -204,7 +206,7 @@ class NodalMarketClearing(Network, CommonMethods):
             self.results.profits_W = {w:sum(self.data.lambda_[t]['N' + str(self.node_W[w])] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
             self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t]['N' + str(self.node_D[d])]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
         elif self.type == 'zonal':
-            self.results.profits_G = {g:sum((self.data.lambda_[t][z] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES for z in self.ZONES) for g in self.GENERATORS}
+            self.results.profits_G = {g:sum((self.data.lambda_[t][self.map_nz['N'+str(self.node_G[g])]] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
             self.results.profits_W = {w:sum(self.data.lambda_[t][z] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for z in self.ZONES) for w in self.WINDTURBINES}
             self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t][z]) * self.data.consumption_values[d,t] for t in self.TIMES for z in self.ZONES) for d in self.DEMANDS}
 
@@ -235,18 +237,18 @@ class NodalMarketClearing(Network, CommonMethods):
             
             # Define a list of colors and line styles
             colors = ['green', 'blue', 'orange']
-            linestyles = ['-', '-', '--']
+            linestyle = ['-', '-', '--']
 
             # Plot the three zones
             for i, zone in enumerate(zones):
                 lambda_values = [self.data.lambda_[t][zone] for t in times]
-                plt.plot(times, lambda_values, drawstyle='steps', label=zone, color=colors[i], linestyle=linestyles[i], linewidth=3)
+                plt.plot(times, lambda_values, drawstyle='steps', label=zone, color=colors[i], linestyle=linestyle[i], linewidth=3)
 
             # Add labels and legend
             plt.ylabel('Price [$/MWh]')
             plt.xlabel('Time')
             plt.legend() 
-            plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1)       
+            plt.tight_layout()      
             plt.show()
         
         elif self.type == 'nodal':
@@ -289,16 +291,16 @@ class NodalMarketClearing(Network, CommonMethods):
 if __name__ == "__main__":
     model_type = 'nodal'
     
-    ec = NodalMarketClearing(model_type, ramping=True, battery=True, hydrogen=True)
-    ec.L_cap['L23'] = 500
-    
-    ec.build_model()
+    model_type='zonal'
+    #ic_cap = {'Z12': 950, 'Z23': 2000} # Line can be increased to just 1000 MW to avoid congestion
+    #ic_cap = {'Z12': 900, 'Z23': 850} # line must be under 900 MW to create congestion
+    ic_cap = None
+
+    ec = NodalMarketClearing(model_type, ramping=True, battery=True, hydrogen=True, ic_cap=ic_cap)
     ec.run()
     ec.calculate_results()
-    
     ec.display_results()
-    print(ec.data.lambda_['T9']['N16'])
-    print(ec.data.lambda_['T9']['N9'])
+
     net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
     #drawLMP(net, ec.data.lambda_, ec.data.loading)
