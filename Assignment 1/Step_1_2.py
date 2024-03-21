@@ -88,11 +88,10 @@ class Network:
     batt_init_soc = {'B1': 200} # Initial state of charge of battery - at time t-1 (T0)
     batt_power = {'B1': 200} # Battery (dis)charging limit is 200 MW
     batt_node = {'B1': 11} # Battery is placed at node 11
-    batt_eta = {'B1': 0.95} # Battery charging and discharging efficiency of 95%
     batt_eta = {'B1': 0.99} # Battery charging and discharging efficiency of 95%
 
     ## Transmission Line Information
-    L_cap = dict(zip(LINES, line_info['Capacity'])) # Capacity of transmission line [MVA]
+    L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
     # R_base = 
     L_susceptance = dict(zip(LINES, [500 for i in LINES])) # 1/line_info['Reactance'])) #  Susceptance of transmission line [pu.] 
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
@@ -100,7 +99,7 @@ class Network:
     
     ## Inter-Zonal capacitances
     c_z1_z2 = L_cap['L25'] + L_cap['L27']
-    c_z2_z3 = 2000
+    c_z2_z3 = L_cap['L7'] + L_cap['L14'] + L_cap['L15'] + L_cap['L16'] + L_cap['L17']
     ZONES = ['Z1', 'Z2', 'Z3']
     zone_cap = {'Z1': {'Z2': c_z1_z2},
                   'Z2': {'Z1': c_z1_z2, 'Z3': c_z2_z3},
