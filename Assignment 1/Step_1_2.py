@@ -9,7 +9,7 @@ import os
 
 class Network:
     # Reading data from Excel, requires openpyxl
-    cwd = os.getcwd()
+    cwd = os.path.dirname(__file__)
     xls = pd.ExcelFile(cwd + '/data.xlsx')
     #xls = pd.ExcelFile('data.xlsx')
     gen_tech = pd.read_excel(xls, 'gen_technical')
@@ -94,7 +94,6 @@ class Network:
 
     ## Transmission Line Information
     L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
-    # R_base = 
     L_susceptance = dict(zip(LINES, [500 for i in LINES])) # 1/line_info['Reactance'])) #  Susceptance of transmission line [pu.] 
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
     L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from Step_1_2 import Network, expando
 from Step_2 import CommonMethods
-from network_plots import createNetwork, drawNormal, drawSingleStep, drawLMP, drawTheta
+from network_plots import createNetwork, drawNormal, drawLMP, drawTheta
 
 class NodalMarketClearing(Network, CommonMethods):
     
@@ -91,7 +91,7 @@ class NodalMarketClearing(Network, CommonMethods):
 
                 # Contribution of demands
                 demand_expr = gb.quicksum(self.variables.consumption[d,t] for d in self.map_d[n])
-
+                
                 # Contribution of wind farms
                 wind_expr = gb.quicksum(self.variables.wind_turbines[w,t] for w in self.map_w[n])
                 if self.H2:
@@ -160,7 +160,7 @@ class NodalMarketClearing(Network, CommonMethods):
     def _add_line_capacity_constraints(self):
         # Line capacity constraints - runs through each line twice, once for each direction.
         # Thus only the max capacity is enforced.
-        self.constraints.lines = {(n,m,t): self.model.addConstr(
+        self.constraints.lines = {(n,m,t): self.model.addLConstr(
                 self.L_susceptance[line] * (self.variables.theta[n,t] - self.variables.theta[m,t]),
                 gb.GRB.LESS_EQUAL,
                 self.L_cap[line],
@@ -202,9 +202,9 @@ class NodalMarketClearing(Network, CommonMethods):
 
     def calculate_results(self):
         if self.type == 'nodal':
-            self.results.profits_G = {g:sum((self.data.lambda_[t][n] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES for n in self.NODES) for g in self.GENERATORS}
-            self.results.profits_W = {w:sum(self.data.lambda_[t][n] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for n in self.NODES) for w in self.WINDTURBINES}
-            self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t][n]) * self.data.consumption_values[d,t] for t in self.TIMES for n in self.NODES) for d in self.DEMANDS}
+            self.results.profits_G = {g:sum((self.data.lambda_[t]['N' + str(self.node_G[g])] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
+            self.results.profits_W = {w:sum(self.data.lambda_[t]['N' + str(self.node_W[w])] * self.data.wind_dispatch_values[w,t] for t in self.TIMES) for w in self.WINDTURBINES}
+            self.results.utilities = {d:sum((self.U_D[t][d] - self.data.lambda_[t]['N' + str(self.node_D[d])]) * self.data.consumption_values[d,t] for t in self.TIMES) for d in self.DEMANDS}
         elif self.type == 'zonal':
             self.results.profits_G = {g:sum((self.data.lambda_[t][self.map_nz['N'+str(self.node_G[g])]] - self.C_G_offer[g])  * self.data.generator_dispatch_values[g,t] for t in self.TIMES) for g in self.GENERATORS}
             self.results.profits_W = {w:sum(self.data.lambda_[t][z] * self.data.wind_dispatch_values[w,t] for t in self.TIMES for z in self.ZONES) for w in self.WINDTURBINES}
@@ -213,8 +213,8 @@ class NodalMarketClearing(Network, CommonMethods):
     def display_results(self):
         print()
         print("-------------------   RESULTS  -------------------")
-        print("Market clearing prices: " + str(self.data.lambda_))
-        print()
+        #print("Market clearing prices: " + str(self.data.lambda_))
+        #print()
         print("Social welfare: " + str(self.data.objective_value))
         print()
         print("Profit of suppliers: ")
@@ -289,6 +289,7 @@ class NodalMarketClearing(Network, CommonMethods):
             
         
 if __name__ == "__main__":
+    model_type = 'nodal'
     
     model_type='zonal'
     #ic_cap = {'Z12': 950, 'Z23': 2000} # Line can be increased to just 1000 MW to avoid congestion
@@ -299,14 +300,17 @@ if __name__ == "__main__":
     ec.run()
     ec.calculate_results()
     ec.display_results()
-    #net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
+
+    net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
     #drawNormal(net)
-    #drawLMP(net, ec.data.lambda_)
-    #drawTheta(net, ec.data.theta)
-    ec.plot_prices()
+    #drawLMP(net, ec.data.lambda_, ec.data.loading)
+    #drawTheta(net, ec.data.theta, ec.data.loading)
+    #print(ec.data.loading['T9'])
+    #ec.plot_prices()
     
     
     # Plot values of theta
+    """
     if model_type == 'nodal':
         for node in ec.NODES:
             theta_values = [ec.data.theta[t][node] for t in ec.TIMES]
@@ -314,5 +318,5 @@ if __name__ == "__main__":
         plt.xlabel('Time')
         plt.ylabel('Voltage angle [rad]')
         plt.legend()
-        plt.show()
+        plt.show()"""
     
