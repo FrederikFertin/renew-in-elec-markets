@@ -289,9 +289,9 @@ class NodalMarketClearing(Network, CommonMethods):
             
         
 if __name__ == "__main__":
-    model_type = 'nodal'
+    model_type = 'zonal'
     
-    model_type='zonal'
+    #model_type='zonal'
     #ic_cap = {'Z12': 950, 'Z23': 2000} # Line can be increased to just 1000 MW to avoid congestion
     #ic_cap = {'Z12': 900, 'Z23': 850} # line must be under 900 MW to create congestion
     ic_cap = None
