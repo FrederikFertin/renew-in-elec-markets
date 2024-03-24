@@ -10,8 +10,9 @@ import os
 class Network:
     # Reading data from Excel, requires openpyxl
     cwd = os.path.dirname(__file__)
-    xls = pd.ExcelFile(cwd + '/data.xlsx')
-    #xls = pd.ExcelFile('data.xlsx')
+    xls = pd.ExcelFile(cwd + '/input_data/data.xlsx')
+    
+    ## Loading data from Excel sheets
     gen_tech = pd.read_excel(xls, 'gen_technical')
     gen_econ = pd.read_excel(xls, 'gen_cost')
     system_demand = pd.read_excel(xls, 'demand')
@@ -20,10 +21,9 @@ class Network:
     wind_tech = pd.read_excel(xls, 'wind_technical')
 
     # Loading csv file of normalized wind profiles
-    wind_profiles = pd.read_csv(cwd + '/wind_profiles.csv')
-    #wind_profiles = pd.read_csv('wind_profiles.csv')
+    wind_profiles = pd.read_csv(cwd + '/input_data/wind_profiles.csv')
 
-    # Number of each type of unit/identity
+    ## Number of each type of unit/identity
     G = np.shape(gen_tech)[0] # Number of generators
     D = np.shape(load_info)[0] # Number of loads/demands
     T = np.shape(system_demand)[0] # Number of time periods/hours
@@ -31,7 +31,7 @@ class Network:
     W = np.shape(wind_tech)[0] # Number of wind farms
     N = 24 # Number of nodes in network
 
-    # Lists of Generators etc.
+    ## Lists of Generators etc.
     GENERATORS = ['G{0}'.format(t) for t in range(1, G+1)]
     DEMANDS = ['D{0}'.format(t) for t in range(1, D+1)]
     LINES = ['L{0}'.format(t) for t in range(1, L+1)]
@@ -40,10 +40,12 @@ class Network:
     NODES = ['N{0}'.format(t) for t in range(1, N+1)]
     ZONES = ['Z1', 'Z2', 'Z3']
     
+    # Zone to node mapping
     map_z = {'Z1': ['N17', 'N18', 'N21', 'N22'],
              'Z2': ['N11', 'N12', 'N13', 'N14', 'N15', 'N16', 'N19', 'N20', 'N23', 'N24'],
              'Z3': ['N{0}'.format(t) for t in range(1, 11)]}
 
+    # Node to zone mapping
     map_nz = {n: z for z, ns in map_z.items() for n in ns}
     
     ## Conventional Generator Information
@@ -60,22 +62,23 @@ class Network:
 
     
     ## Demand Information
-    P_D_sum = dict(zip(TIMES, system_demand['System_demand'])) # Total system demands
+    P_D_sum = dict(zip(TIMES, system_demand['System_demand'])) # Total hourly system demands [MWh]
     P_D = {} # Distribution of system demands
     for t, key in enumerate(TIMES):
         P_D[key] = dict(zip(DEMANDS, load_info['load_percent']/100*system_demand['System_demand'][t]))
-    U_D = {}
+    
+    U_D = {} # Demand bidding price
     for t, key in enumerate(TIMES):
         U_D[key] = dict(zip(DEMANDS, load_info['bid_price'])) # Demand bidding price <- set values in excel
-    U_D['T9']['D13'] = 10.2
-    U_D['T9']['D16'] = 7.0
+    U_D['T9']['D13'] = 10.2 # Change the value of a specific demand at a specific time
+    U_D['T9']['D16'] = 7.0 # Change the value of a specific demand at a specific time
     node_D = dict(zip(DEMANDS, load_info['Node'])) # Load node placements
     U_D_curt = 400 # cost of demand curtailment in BM [$/MWh]
     
     ## Wind Turbine Information
     p_W_cap = 200 # Wind farm capacities (MW)
     WT = ['V{0}'.format(v) for v in wind_tech['Profile']]
-    chosen_wind_profiles = wind_profiles[WT] # 'Randomly' chosen profiles for each wind farm
+    chosen_wind_profiles = wind_profiles[WT] # 'Randomly' chosen production profiles for each wind farm
     P_W = {} # Wind production for each hour and each wind farm
     for t, key in enumerate(TIMES):
         P_W[key] = dict(zip(WINDTURBINES, chosen_wind_profiles.iloc[t,:] * p_W_cap))
@@ -90,18 +93,18 @@ class Network:
     batt_init_soc = {'B1': 200} # Initial state of charge of battery - at time t-1 (T0)
     batt_power = {'B1': 200} # Battery (dis)charging limit is 200 MW
     batt_node = {'B1': 11} # Battery is placed at node 11
-    batt_eta = {'B1': 0.99} # Battery charging and discharging efficiency of 95%
+    batt_eta = {'B1': 0.99} # Battery charging and discharging efficiency of 99%
 
     ## Transmission Line Information
     L_cap = dict(zip(LINES, line_info['Capacity_wind'])) # Capacity of transmission line [MVA]
-    L_susceptance = dict(zip(LINES, [500 for i in LINES])) # 1/line_info['Reactance'])) #  Susceptance of transmission line [pu.] 
+    L_susceptance = dict(zip(LINES, [500 for i in LINES])) #  Susceptance of transmission line [pu.] 
     L_from = dict(zip(LINES, line_info['From'])) # Origin node of transmission line
     L_to = dict(zip(LINES, line_info['To'])) # Destination node of transmission line
     
-    ## Inter-Zonal capacitances
+    ## Inter-Zonal capacities
     c_z1_z2 = L_cap['L25'] + L_cap['L27']
     c_z2_z3 = L_cap['L7'] + L_cap['L14'] + L_cap['L15'] + L_cap['L16'] + L_cap['L17']
-    ZONES = ['Z1', 'Z2', 'Z3']
+
     zone_cap = {'Z1': {'Z2': c_z1_z2},
                 'Z2': {'Z1': c_z1_z2, 'Z3': c_z2_z3},
                 'Z3': {'Z2': c_z2_z3}}
@@ -114,14 +117,14 @@ class Network:
 
 
     def __init__(self):
-        # Nodal mappings:
-        self.map_g = self._map_units(self.node_G)
-        self.map_d = self._map_units(self.node_D)
-        self.map_w = self._map_units(self.node_W)
-        self.map_b = self._map_units(self.batt_node)
-        self.map_from = self._map_units(self.L_from)
-        self.map_to = self._map_units(self.L_to)
-        self._map_nodes()
+        # Node to unit mappings
+        self.map_g = self._map_units(self.node_G) # Generators
+        self.map_d = self._map_units(self.node_D) # Demands
+        self.map_w = self._map_units(self.node_W) # Wind turbines
+        self.map_b = self._map_units(self.batt_node) # Batteries
+        self.map_from = self._map_units(self.L_from) # Transmission lines
+        self.map_to = self._map_units(self.L_to) # Transmission lines
+        self._map_nodes() # Combination of the two above mappings
 
     def _map_units(self,node_list):
         mapping_units = {}
@@ -162,18 +165,18 @@ class EconomicDispatch(Network, CommonMethods):
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
-        self.constraints = expando() # build sontraint attributes
-        self.results = expando()
-        self.TIMES = self.TIMES[:n_hours]
-        self.ramping = ramping
-        self.battery = battery
-        self.H2 = hydrogen
+        self.constraints = expando() # build constraint attributes
+        self.results = expando() # build results attributes
+        self.TIMES = self.TIMES[:n_hours] # set number of hours to run the model
+        self.ramping = ramping # Is ramping constraints enforced?
+        self.battery = battery # Is battery included in the model?
+        self.H2 = hydrogen # Is hydrogen included in the model?
         if not battery: 
             self.BATTERIES = []
         self._build_model() # build gurobi model
     
     def _build_model(self):
-        # initialize optimization modenb  bbn l
+        # initialize optimization model
         self.model = gb.Model(name='Economic Dispatch')
         
         # initialize variables 
@@ -181,8 +184,10 @@ class EconomicDispatch(Network, CommonMethods):
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.H2:
+            # Place one electrolyzer at each wind farm
             self.variables.hydrogen = {(w,t):self.model.addVar(lb=0,ub=100,name='consumption of electrolyzer {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.battery:
+            # Initialize battery variables with lower and upper bounds on capacity and power
             self.variables.battery_soc = {(b,t):self.model.addVar(lb=0,ub=self.batt_cap[b],name='soc of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
             self.variables.battery_ch = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='dispatch of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}
             self.variables.battery_dis = {(b,t):self.model.addVar(lb=0,ub=self.batt_power[b],name='consumption of battery {0}'.format(b)) for b in self.BATTERIES for t in self.TIMES}

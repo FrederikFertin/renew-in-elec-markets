@@ -15,14 +15,15 @@ import os
  
 
 def createNetwork(mapping_gen, mapping_loads, mapping_wind):
+    """ Initializes a pandapower network based on the given mappings of generators,
+        loads and wind turbines to buses."""
+
     # create empty net
     net = pp.create_empty_network()
     cwd = os.path.dirname(__file__)
-    bus_map = pd.read_csv(cwd + '/bus_map.csv', delimiter=';')
-    #bus_map = pd.read_csv('bus_map.csv', delimiter=';')
+    bus_map = pd.read_csv(cwd + '/input_data/bus_map.csv', delimiter=';')
     
-    line_map = pd.read_csv(cwd + '/lines.csv', delimiter=';')
-    #line_map = pd.read_csv('lines.csv', delimiter=';')
+    line_map = pd.read_csv(cwd + '/input_data/lines.csv', delimiter=';')
     
     # Create buses
     for i in range(len(bus_map)):
@@ -54,16 +55,13 @@ def createNetwork(mapping_gen, mapping_loads, mapping_wind):
 
 
 def drawNormal(net):
+    """ Draws the network with buses, lines, generators, loads and wind turbines. """
     
-    bus_map = pd.read_csv('bus_map.csv', delimiter=';')
-    
-    line_map = pd.read_csv('lines.csv', delimiter=';')
-        
     size = 5
     
     d_c = plot.create_load_collection(net, loads=net.load.index, size=size)
     gen_c = plot.create_gen_collection(net, gens=net.gen.index, size=size, orientation=0)
-    wind_c = plot.create_ext_grid_collection(net, ext_grids=net.ext_grid.index, size=size, orientation=3.14/2)
+    wind_c = plot.create_sgen_collection(net, sgens=net.sgen.index, size=size, orientation=3.14/2)
     
     bc = plot.create_bus_collection(net, buses=net.bus.index, size=size, 
                                     zorder=10, color='blue')
@@ -75,31 +73,11 @@ def drawNormal(net):
     plt.legend()
     plt.show()
 
-"""
-def drawSingleStep(net, p_G, p_W, LMP):
-    
-    size = 5
-    
-    cmap = plt.get_cmap('rainbow')
-    norm_bus = Normalize(0,25)
-    
-    d_c = plot.create_load_collection(net, loads=net.load.index, size=size) 
-    gen_c = plot.create_gen_collection(net, gens=net.gen.index, size=size, orientation=0)
-    wind_c = plot.create_ext_grid_collection(net, ext_grids=net.ext_grid.index, size=size, orientation=3.14/2)
-    
-    lc = plot.create_line_collection(net, lines=net.line.index, zorder=1,\
-                        use_bus_geodata=True,color='grey')
-    
-    bc = plot.create_bus_collection(net, buses=net.bus.index, size=size, 
-            zorder=1, z=list(LMP.values()), cmap=cmap, norm=norm_bus, cbar_title="Node LMP [DKK/MWh]")# ,use_bus_geodata=True)
-    
-    plot.draw_collections([d_c, gen_c, wind_c, lc, bc])
-    plt.title('Single time-step DC OPF', fontsize=20)
-    plt.show()"""
-
 
 def drawLMP(net, lambda_, loading: dict | None = None):
-    
+    """ Draws the network with the LMPs of each bus as a color gradient.
+        Also highlights congested lines if loading is provided. """
+
     size = 5
     draw_collection = []
     draw_collection.append(plot.create_load_collection(net, loads=net.load.index, size=size))
@@ -144,6 +122,8 @@ def drawLMP(net, lambda_, loading: dict | None = None):
         plt.show()
 
 def drawTheta(net, theta_, loading: dict | None = None):
+    """ Draws the network with the voltage angles of each bus as a color gradient. 
+        Also highlights congested lines if loading is provided. """
     
     size = 5
     draw_collection = []

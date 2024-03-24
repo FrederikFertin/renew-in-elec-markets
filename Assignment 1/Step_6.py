@@ -17,58 +17,64 @@ class ReserveAndDispatch(Network, CommonMethods):
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
-        self.constraints = expando() # build sontraint attributes
-        self.results = expando()
-        self.TIMES = self.TIMES[:n_hours]
-        self.ramping = ramping
-        self.battery = battery
-        self.H2 = hydrogen
-        self.up_reserve = up_reserve
-        self.down_reserve = down_reserve
+        self.constraints = expando() # build constraint attributes
+        self.results = expando() # build result attributes
+        self.TIMES = self.TIMES[:n_hours] # set number of hours
+        self.ramping = ramping # Is ramping constraint active?
+        self.battery = battery # Is battery included?
+        self.H2 = hydrogen # Is hydrogen included?
+        self.up_reserve = up_reserve # Up reserve requirement (fraction of total demand)
+        self.down_reserve = down_reserve # Down reserve requirement (fraction of total demand)
         if not battery: 
             self.BATTERIES = []
         self._build_reserve() # build reserve model
         
     
     def _build_reserve(self):
-        # initialize optimization model for reserve
+        ## Initialize optimization model for reserve
         self.model = gb.Model(name='Reserve')
-    
+
+        ## Create variables - up and down reserve for each generator
         self.variables.generator_up = {(g,t):self.model.addVar(lb=0,ub=self.P_R_PLUS[g],name='Up reserve of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.generator_down = {(g,t):self.model.addVar(lb=0,ub=self.P_R_MINUS[g],name='Down reserve of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         
         self.model.update()
         
-        # Minimize reserve costs
+        # Set Objective - Minimize reserve costs
         self.model.setObjective(gb.quicksum(self.variables.generator_up[g,t] * self.C_U[g] for g in self.GENERATORS for t in self.TIMES)
-                                + gb.quicksum(self.variables.generator_down[g,t] * self.C_D[g] for g in self.GENERATORS for t in self.TIMES), gb.GRB.MINIMIZE)
+                                + gb.quicksum(self.variables.generator_down[g,t] * self.C_D[g] for g in self.GENERATORS for t in self.TIMES),
+                                gb.GRB.MINIMIZE)
         
         # Compute total demand
         total_demand = {t:gb.quicksum(self.P_D[t][d] for d in self.DEMANDS) for t in self.TIMES}
         
         # Meet up and down reserve requirements
-        self.constraints.reserve_up = {(t):self.model.addConstr(gb.quicksum(self.variables.generator_up[g,t] for g in self.GENERATORS), gb.GRB.EQUAL, self.up_reserve * total_demand[t]) for t in self.TIMES}
+        self.constraints.reserve_up = {(t):self.model.addConstr(gb.quicksum(self.variables.generator_up[g,t] for g in self.GENERATORS),
+                                                                gb.GRB.EQUAL,
+                                                                self.up_reserve * total_demand[t]) for t in self.TIMES}
         
-        self.constraints.reserve_down = {(t):self.model.addConstr(gb.quicksum(self.variables.generator_down[g,t] for g in self.GENERATORS), gb.GRB.EQUAL, self.down_reserve * total_demand[t]) for t in self.TIMES}
+        self.constraints.reserve_down = {(t):self.model.addConstr(gb.quicksum(self.variables.generator_down[g,t] for g in self.GENERATORS),
+                                                                  gb.GRB.EQUAL,
+                                                                  self.down_reserve * total_demand[t]) for t in self.TIMES}
         
-        # Ramping constraints, up reserve
-        self.constraints.reserve_up_ramping_dw = {(g,t):self.model.addConstr(
-            self.variables.generator_up[g,t] - self.variables.generator_up[g,self.TIMES[n]],
-            gb.GRB.GREATER_EQUAL, -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-        self.constraints.reserve_up_ramping_up = {(g,t):self.model.addConstr(
-            self.variables.generator_up[g,t] - self.variables.generator_up[g,self.TIMES[n]],
-            gb.GRB.LESS_EQUAL, self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-        
-        # Ramping constraints, down reserve
-        self.constraints.reserve_down_ramping_dw = {(g,t):self.model.addConstr(
-            self.variables.generator_down[g,t] - self.variables.generator_down[g,self.TIMES[n]],
-            gb.GRB.GREATER_EQUAL, -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
-        self.constraints.reserve_down_ramping_up = {(g,t):self.model.addConstr(
-            self.variables.generator_down[g,t] - self.variables.generator_down[g,self.TIMES[n]],
-            gb.GRB.LESS_EQUAL, self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+        if self.ramping:
+            # Ramping constraints, up reserve
+            self.constraints.reserve_up_ramping_dw = {(g,t):self.model.addConstr(
+                self.variables.generator_up[g,t] - self.variables.generator_up[g,self.TIMES[n]],
+                gb.GRB.GREATER_EQUAL, -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+            self.constraints.reserve_up_ramping_up = {(g,t):self.model.addConstr(
+                self.variables.generator_up[g,t] - self.variables.generator_up[g,self.TIMES[n]],
+                gb.GRB.LESS_EQUAL, self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+            
+            # Ramping constraints, down reserve
+            self.constraints.reserve_down_ramping_dw = {(g,t):self.model.addConstr(
+                self.variables.generator_down[g,t] - self.variables.generator_down[g,self.TIMES[n]],
+                gb.GRB.GREATER_EQUAL, -self.P_R_DW[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
+            self.constraints.reserve_down_ramping_up = {(g,t):self.model.addConstr(
+                self.variables.generator_down[g,t] - self.variables.generator_down[g,self.TIMES[n]],
+                gb.GRB.LESS_EQUAL, self.P_R_UP[g]) for g in self.GENERATORS for n,t in enumerate(self.TIMES[1:])}
 
-
-        # Capacity constraints
+        # Capacity constraints for reserve
         self.constraints.capacity = {(g,t):self.model.addConstr(self.variables.generator_up[g,t] + self.variables.generator_down[g,t], gb.GRB.LESS_EQUAL, self.P_G_max[g]) for g in self.GENERATORS for t in self.TIMES}
         
     def _build_model(self):
@@ -77,6 +83,7 @@ class ReserveAndDispatch(Network, CommonMethods):
         
         # initialize variables 
         self.variables.consumption = {(d,t):self.model.addVar(lb=0,ub=self.P_D[t][d],name='consumption of demand {0}'.format(d)) for d in self.DEMANDS for t in self.TIMES}
+        # Dispatch of generators - reserve values are used in the bounds
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=self.data.down_reserve_values[g,t],ub=(self.P_G_max[g] - self.data.up_reserve_values[g,t]),name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.H2:
@@ -96,19 +103,19 @@ class ReserveAndDispatch(Network, CommonMethods):
 
         # Balance constraint
         # Evaluates based on the values of self.battery and self.H2
-        self.constraints.balance_constraint = self.add_balance_constraints()
+        self.constraints.balance_constraint = self._add_balance_constraints()
         
         # ramping constraints
         if self.ramping:
-            self.add_ramping_constraints()
+            self._add_ramping_constraints()
         
         # battery constraints
         if self.battery:
-            self.add_battery_constraints()
+            self._add_battery_constraints()
         
         # electrolyzer constraints
         if self.H2:
-            self.add_hydrogen_constraints()
+            self._add_hydrogen_constraints()
         
     def _save_reserve(self):
         # save objective value

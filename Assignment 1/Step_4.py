@@ -14,11 +14,11 @@ class NodalMarketClearing(Network, CommonMethods):
         
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
-        self.constraints = expando() # build sontraint attributes
-        self.results = expando()
-        self.ramping = ramping
-        self.battery = battery
-        self.H2 = hydrogen
+        self.constraints = expando() # build constraint attributes
+        self.results = expando() # build results attributes
+        self.ramping = ramping # Is ramping constraint enforced?
+        self.battery = battery # Is battery included?
+        self.H2 = hydrogen # Is hydrogen included?
         if not self.battery:
             self.BATTERIES = []
         if model_type != 'nodal' and model_type != 'zonal':
@@ -26,6 +26,7 @@ class NodalMarketClearing(Network, CommonMethods):
         else:
             self.type = model_type
         if ic_cap is not None:
+            # Overwrite the interconnector capacities if they are provided
             self.ic_cap = ic_cap
         self._build_model() # build gurobi model
     
@@ -38,8 +39,10 @@ class NodalMarketClearing(Network, CommonMethods):
         self.variables.generator_dispatch = {(g,t):self.model.addVar(lb=0,ub=self.P_G_max[g],name='dispatch of generator {0}'.format(g)) for g in self.GENERATORS for t in self.TIMES}
         self.variables.wind_turbines = {(w,t):self.model.addVar(lb=0,ub=self.P_W[t][w],name='dispatch of wind turbine {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
         if self.type == 'nodal':
+            # Nodal voltage angle variables - node N1 is reference node
             self.variables.theta = {(n,t):self.model.addVar(lb=-GRB.INFINITY,name='voltage angle at node {0}'.format(n)) for n in self.NODES for t in self.TIMES}
         elif self.type == 'zonal':
+            # Zoanl interconnector flow variables - capacities enforced as lb and ub
             self.variables.ic = {(ic,t):self.model.addVar(lb=-self.ic_cap[ic],ub=self.ic_cap[ic],name='interconnector flow {0}'.format(ic)) for ic in self.INTERCONNECTORS for t in self.TIMES}
         if self.H2:
             self.variables.hydrogen = {(w,t):self.model.addVar(lb=0,ub=100,name='consumption of electrolyzer {0}'.format(w)) for w in self.WINDTURBINES for t in self.TIMES}
