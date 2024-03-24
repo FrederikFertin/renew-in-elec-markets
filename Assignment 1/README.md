@@ -1,11 +1,12 @@
 # Assignment 1
 This repository contains the code and data for assignment 1.
+The pdf file Assignment_1_report.pdf is the answer report.
 
 ## Bus system and Data used
 The wind data used in taken from the website: "https://sites.google.com/site/datasmopf/data-format". The zone chosen is zone 8. The file has been imported as a csv and renamed: "wind_profiles.csv".
 
 ## Subfolders
-The folder contains a folder for the inpt data, the plots generated, lecture notes, and the assignment description.
+The folder contains a folder for the inpt data, the plots generated, and the assignment description.
 
 ## Scripts
 Most scripts, except network_plots.py and Step_2.py, contain a main, which should be run to obtain results for the given step in the assignment. All scripts define functions and/or classes.
