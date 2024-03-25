@@ -1,5 +1,4 @@
 import gurobipy as gb
-from gurobipy import GRB
 
 class CommonMethods:
     def _add_ramping_constraints(self):

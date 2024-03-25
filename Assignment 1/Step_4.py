@@ -11,7 +11,6 @@ class NodalMarketClearing(Network, CommonMethods):
     
     def __init__(self, model_type: str, ramping: bool, battery: bool, hydrogen: bool, ic_cap = None): # initialize class
         super().__init__()
-        
         self.data = expando() # build data attributes
         self.variables = expando() # build variable attributes
         self.constraints = expando() # build constraint attributes
@@ -292,11 +291,9 @@ class NodalMarketClearing(Network, CommonMethods):
             
         
 if __name__ == "__main__":
-    model_type = 'zonal'
-    
-    #model_type='zonal'
+    model_type = 'nodal'
     #ic_cap = {'Z12': 950, 'Z23': 2000} # Line can be increased to just 1000 MW to avoid congestion
-    #ic_cap = {'Z12': 900, 'Z23': 850} # line must be under 900 MW to create congestion
+    #ic_cap = {'Z12': 900, 'Z23': 850} # Line must be under 900 MW to create congestion
     ic_cap = None
 
     ec = NodalMarketClearing(model_type, ramping=True, battery=True, hydrogen=True, ic_cap=ic_cap)

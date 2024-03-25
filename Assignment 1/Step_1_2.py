@@ -1,10 +1,7 @@
 import gurobipy as gb
-from gurobipy import GRB
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from Step_2 import CommonMethods
-from network_plots import plot_SD_curve
 import os
 
 class Network:

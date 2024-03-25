@@ -7,9 +7,6 @@ from Step_1_2 import Network, expando
 from Step_2 import CommonMethods
 # from network_plots import createNetwork, drawNormal, drawSingleStep, drawLMP
 
-
-
-
 class ReserveAndDispatch(Network, CommonMethods):
     
     def __init__(self, n_hours: int, ramping: bool, battery: bool, hydrogen: bool, up_reserve: float, down_reserve: float): # initialize class
@@ -237,8 +234,7 @@ class ReserveAndDispatch(Network, CommonMethods):
         plt.ylabel('Price')
         plt.legend()
         plt.show()
-        
-        
+
         
 if __name__ == "__main__":
     ec = ReserveAndDispatch(n_hours=24, ramping=True, battery=True, hydrogen=True, up_reserve=0.15, down_reserve=0.1)
@@ -247,14 +243,3 @@ if __name__ == "__main__":
     ec.display_results()
     #ec.plot_profit()
     ec.plot_prices()
-
-    
-
-
-    
-
-    
-    
-
-    
-    
