@@ -14,7 +14,7 @@ class BalancingMarket(EconomicDispatch):
         self.bm_results = expando() # build
         self.hour = hour
 
-    def _build_bm_model(self):
+    def build_bm_model(self):
          # initialize optimization model
          self.bm_model = gb.Model(name='Balancing Market')
 
@@ -130,10 +130,10 @@ class BalancingMarket(EconomicDispatch):
     def calculate_bm_results(self, pricing_scheme: str):
         if pricing_scheme == 'one-price':
             self.bm_results.profits_G = {g:
-                self.bm_data.lambda_ * (self.bm_data.upregulation_values[g] - self.bm_data.downregulation_values[g])
+                (self.bm_data.lambda_ - self.C_G_offer[g]) * (self.bm_data.upregulation_values[g] - self.bm_data.downregulation_values[g])
                 for g in self.GENERATORS
             }
-            self.bm_results.profits_G['G9'] = - self.bm_data.lambda_ * self.data.generator_dispatch_values['G9',self.hour]
+            self.bm_results.profits_G['G9'] = (self.C_G_offer['G9'] - self.bm_data.lambda_) * self.data.generator_dispatch_values['G9', self.hour]
             self.bm_results.profits_W = {w:
                 - self.bm_data.lambda_ * 0.1 * self.data.wind_dispatch_values[w, self.hour] for w in ['W1', 'W2']
             }
@@ -146,14 +146,14 @@ class BalancingMarket(EconomicDispatch):
                 for g in self.GENERATORS
             }
             if self.power_deficit:
-                self.bm_results.profits_G['G9'] = - self.bm_data.lambda_ * self.data.generator_dispatch_values['G9', self.hour]
+                self.bm_results.profits_G['G9'] = (self.C_G_offer['G9'] - self.bm_data.lambda_) * self.data.generator_dispatch_values['G9', self.hour]
                 self.bm_results.profits_W = {w:
                     - self.bm_data.lambda_ * 0.1 * self.data.wind_dispatch_values[w, self.hour] for w in ['W1', 'W2']
                 }
                 for w in ['W4', 'W6']:
                     self.bm_results.profits_W[w] = self.data.lambda_[self.hour] * 0.15 * self.data.wind_dispatch_values[w, self.hour]
             else:
-                self.bm_results.profits_G['G9'] = - self.data.lambda_[self.hour] * self.data.generator_dispatch_values[
+                self.bm_results.profits_G['G9'] = (self.C_G_offer['G9'] - self.data.lambda_[self.hour]) * self.data.generator_dispatch_values[
                     'G9', self.hour]
                 self.bm_results.profits_W = {w:
                     - self.data.lambda_[self.hour] * 0.1 * self.data.wind_dispatch_values[w, self.hour] for w in ['W1', 'W2']
@@ -163,6 +163,20 @@ class BalancingMarket(EconomicDispatch):
 
         else:
             raise NotImplementedError
+
+    def calculate_DA_results(self):
+        # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
+        self.results.profits_G = {g:
+            (self.data.lambda_[self.hour] - self.C_G_offer[g]) * self.data.generator_dispatch_values[g, self.hour]
+                                  for g in self.GENERATORS}
+        self.results.profits_W = {
+            w: self.data.lambda_[self.hour] * self.data.wind_dispatch_values[w, self.hour] for w in
+            self.WINDTURBINES}
+
+        # calculate utility of suppliers ( (U_D - lambda) * p_D )
+        self.results.utilities = {d:
+            (self.U_D[self.hour][d] - self.data.lambda_[self.hour]) * self.data.consumption_values[d, self.hour]
+            for d in self.DEMANDS}
 
     def display_results(self):
         print("Modified values for Hour 10:")
@@ -189,9 +203,12 @@ if __name__ == "__main__":
     bm = BalancingMarket(ramping=False, battery=False, hydrogen=False, hour='T10')
     # Clear DA market
     bm.run()
+    # Calculate DA results
+    bm.calculate_DA_results()
     # Now we clear the BM
-    bm._build_bm_model()
+    bm.build_bm_model()
     bm.clear_bm()
+    bm.calculate_bm_results(pricing_scheme='one-price')
     bm.calculate_bm_results(pricing_scheme='two-price')
     bm.display_results()
 
