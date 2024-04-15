@@ -134,20 +134,22 @@ class OfferingStrategy:
 
     def calculate_results(self):
         self.results.DA_profits = {w:
-            self.lambda_DA self.data.DA_dispatch_values[t]
+            self.lambda_DA[t, w] * self.data.DA_dispatch_values[t]
+            for t in self.TIMES for w in self.SCENARIOS
         }
-
-        # calculate profits of suppliers ( profits = (C_G - lambda) * p_G )
-        self.results.profits_G = {g: sum(
-            (self.data.lambda_[t] - self.C_G_offer[g]) * self.data.generator_dispatch_values[g, t] for t in self.TIMES)
-                                  for g in self.GENERATORS}
-        self.results.profits_W = {
-            w: sum(self.data.lambda_[t] * self.data.wind_dispatch_values[w, t] for t in self.TIMES) for w in
-            self.WINDTURBINES}
-
-        # calculate utility of suppliers ( (U_D - lambda) * p_D )
-        self.results.utilities = {
-            d: sum((self.U_D[t][d] - self.data.lambda_[t]) * self.data.consumption_values[d, t] for t in self.TIMES) for
-            d in self.DEMANDS}
+        if self.price_scheme == 'one_price':
+            self.results.BA_profits = {w:
+                0.9 * self.lambda_DA[t, w] * self.data.Delta_UP_values[t, w]
+                - 1.2 * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t, w]
+                for t in self.TIMES for w in self.SCENARIOS
+            }
+        elif self.price_scheme == 'two_price':
+            self.results.BA_profits = {w:
+                0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_UP_values[t, w]
+                - 1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t, w]
+                for t in self.TIMES for w in self.SCENARIOS
+            }
+        else:
+            raise NotImplementedError
 
 
