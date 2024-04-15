@@ -2,52 +2,49 @@ import os
 import pandas as pd
 import numpy as np
 
-# Set seed
-np.random.seed(42)
+class DataInit:
+    def __init__(self):
+        # Set seed
+        np.random.seed(42)
 
-cwd = os.path.dirname(__file__)
+        cwd = os.path.dirname(__file__)
 
+        self.wind = pd.read_csv(cwd + '/input_data/wind_DK.csv', parse_dates=True)
+        self.wind['offshore'] = self.wind['offshore'] * 200
+        # Convert time to datetime format
+        self.wind['time'] = pd.to_datetime(self.wind['time'])
 
-wind = pd.read_csv(cwd + '/input_data/wind_DK.csv', parse_dates=True)
-wind['offshore'] = wind['offshore'] * 200
-# Convert time to datetime format
-wind['time'] = pd.to_datetime(wind['time'])
+        self.prices = pd.read_csv(cwd + '/input_data/Elspotprices.csv', sep=';', decimal=",", parse_dates=True)
+        self.prices['HourUTC'] = pd.to_datetime(self.prices['HourUTC'])
+        # Reverse the order of the prices
+        self.prices = self.prices.iloc[::-1]
 
+    def _wind_scenario_generator(self, n):
+        indices = np.random.choice(int(len(self.wind.index)/24), n)
+        days = self.wind.iloc[indices*24]['time'].dt.date
+        scenario = self.wind.loc[self.wind['time'].dt.date.isin(days)]
+        return scenario['offshore'].values.reshape(n, 24)
 
-prices = pd.read_csv(cwd + '/input_data/Elspotprices.csv', sep=';', decimal=",", parse_dates=True)
-prices['HourUTC'] = pd.to_datetime(prices['HourUTC'])
-# Reverse the order of the prices
-prices = prices.iloc[::-1]
+    def _price_scenario_generator(self, n):
+        indices = np.random.choice(int(len(self.prices.index)/24), n)
+        days = self.prices.iloc[indices*24]['HourUTC'].dt.date
+        scenario = self.prices.loc[self.prices['HourUTC'].dt.date.isin(days)]
+        return scenario['SpotPriceEUR'].values.reshape(n, 24)
 
+    def _balance_scenario_generator(self, n):
+        return np.random.choice([0, 1], size=(24, n), p=[0.4, 0.6]).T
 
-# Function that selectes n random days from the wind data and returns the daily wind production for those days
-def wind_scenario_generator(n):
-    # Generate n random indices which will be used to select n random days
-    indices = np.random.choice(int(len(wind.index)/24), n)
-    days = wind.iloc[indices*24]['time'].dt.date
-    # Select the n random days of data
-    scenario = wind.loc[wind['time'].dt.date.isin(days)]
-    return scenario['offshore'].values.reshape(n, 24)
-
-# Function that selectes n random days from the price data and returns the daily prices for those days
-def price_scenario_generator(n):
-    # Generate n random indices which will be used to select n random days
-    indices = np.random.choice(int(len(prices.index)/24), n)
-    days = prices.iloc[indices*24]['HourUTC'].dt.date
-    # Select the n random days of data
-    scenario = prices.loc[prices['HourUTC'].dt.date.isin(days)]
-    return scenario['SpotPriceEUR'].values.reshape(n, 24)
-
-
-# Function that generates n scenarios of 24 binary variables based on a bernoulli distribution with p=0.6
-def balance_scenario_generator(n):
-    # Generates n scenarios of 24 binary variables based on a bernoulli distribution with p=0.6
-
-    return np.random.choice([0, 1], size=(24, n), p=[0.4, 0.6]).T
-
-wind_scenarios = wind_scenario_generator(20)
-price_scenarios = price_scenario_generator(20)
-balance_scenarios = balance_scenario_generator(5)
-scenarios = [[wind_scenarios[i], price_scenarios[j], balance_scenarios[k]] for i in range(20) for j in range(20) for k in range(5)]
-print(np.shape(scenarios))
-print(scenarios[0])
+    def generate_scenarios(self, n_wind=20, n_price=20, n_balance=5):
+        """
+        Generates scenarios for wind, price and balance of format of list of lists of arrays. 
+        The length of the outer list is n_wind * n_price * n_balance.
+        The length of the inner list is 3,
+        where the first element is the wind scenario,
+        the second element is the price scenario,
+        and the third element is the balance scenario.
+        """
+        wind_scenarios = self._wind_scenario_generator(n_wind)
+        price_scenarios = self._price_scenario_generator(n_price)
+        balance_scenarios = self._balance_scenario_generator(n_balance)
+        scenarios = [[wind_scenarios[i], price_scenarios[j], balance_scenarios[k]] for i in range(n_wind) for j in range(n_price) for k in range(n_balance)]
+        return scenarios
