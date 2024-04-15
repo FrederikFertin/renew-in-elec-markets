@@ -35,7 +35,7 @@ class DataInit:
         return scenario['SpotPriceEUR'].values.reshape(n, 24)
 
     def _balance_scenario_generator(self, n):
-        return np.random.choice([0, 1], size=(24, n), p=[0.4, 0.6]).T
+        return np.random.choice([0, 1], size=(n, 24), p=[0.4, 0.6])
 
     def generate_scenarios(self, n_wind=20, n_price=20, n_balance=3, train_size=0.25, seed=42):
         """
@@ -57,7 +57,7 @@ class DataInit:
         balance_scenarios = self._balance_scenario_generator(n_balance)
         self.scenarios = [{'wind' : wind_scenarios[i],
                            'lambda' : price_scenarios[j],
-                           'system_balance' :balance_scenarios[k]}
+                           'system_balance' : balance_scenarios[k]}
                            for i in range(n_wind) for j in range(n_price) for k in range(n_balance)]
 
         # Shuffle order of scenarios and split into train and test
