@@ -1,6 +1,7 @@
 import gurobipy as gb
 from gurobipy import GRB
 import numpy as np
+from scenario import DataInit
 
 """
 inputs: 
@@ -8,8 +9,9 @@ inputs:
 - TIMES (set of times e.g., 'T1')
 - SCENARIOS (set of scenarios e.g., 'S1')
 - pi[w] (probability of each scenario)
-- lambda_DA[t,w] (DA price at time t in scenario w)
-- p_real[t,w] (realized production)
+- lambda_DA[t, w] (DA price at time t in scenario w)
+- p_real[t, w] (realized production)
+- imbalance_direction[t, w] (direction of imbalance at time t in scenario w)
 """
 
 
@@ -20,9 +22,11 @@ class expando(object):
     '''
     pass
 
-class OfferingStrategy:
+class OfferingStrategy(DataInit):
 
     def __init__(self, price_scheme: str):
+        super().__init__()
+        self.generate_scenarios(n_wind=20, n_price=20, n_balance=3, train_size=0.25, seed=42)
         self.data = expando()  # build data attributes
         self.variables = expando()  # build variable attributes
         self.constraints = expando()  # build constraint attributes
@@ -55,12 +59,11 @@ class OfferingStrategy:
         )
         if self.price_scheme == 'one_price':
             UP_profits = gb.quicksum(
-                self.pi[w] * 0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[
-                    t, w]
+                self.pi[w] * 0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[t, w]
                 for w in self.SCENARIOS for t in self.TIMES
             )
-            DOWN_costs = gb.quicksum(self.pi[w] * 1.2 * self.lambda_DA[t, w] *
-                self.variables.Delta_DOWN[t, w]
+            DOWN_costs = gb.quicksum(
+                self.pi[w] * 1.2 * self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w]
                 for w in self.SCENARIOS for t in self.TIMES
             )
         elif self.price_scheme == 'two_price':
@@ -139,17 +142,24 @@ class OfferingStrategy:
         }
         if self.price_scheme == 'one_price':
             self.results.BA_profits = {w:
-                0.9 * self.lambda_DA[t, w] * self.data.Delta_UP_values[t, w]
-                - 1.2 * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t, w]
+                0.9 * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
+                - 1.2 * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t][w]
                 for t in self.TIMES for w in self.SCENARIOS
             }
         elif self.price_scheme == 'two_price':
             self.results.BA_profits = {w:
-                0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_UP_values[t, w]
-                - 1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t, w]
+                0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
+                - 1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t][w]
                 for t in self.TIMES for w in self.SCENARIOS
             }
         else:
             raise NotImplementedError
 
-
+if __name__ == '__main__':
+    offering_strategy = OfferingStrategy(price_scheme='one_price')
+    offering_strategy.run_model()
+    offering_strategy.calculate_results()
+    print(offering_strategy.data.objective_value)
+    print(offering_strategy.results.DA_profits)
+    print(offering_strategy.results.BA_profits)
+    print(offering_strategy.pi)
