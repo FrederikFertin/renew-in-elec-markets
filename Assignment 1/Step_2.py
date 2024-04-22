@@ -82,4 +82,3 @@ class CommonMethods:
                                         gb.GRB.EQUAL,
                                         0, name='Balance equation')
         return balance_constraints
-        
