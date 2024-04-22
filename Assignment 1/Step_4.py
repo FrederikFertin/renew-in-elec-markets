@@ -6,6 +6,7 @@ import pandas as pd
 from Step_1_2 import Network, expando
 from Step_2 import CommonMethods
 from network_plots import createNetwork, drawNormal, drawLMP, drawTheta
+from scipy import stats
 
 class NodalMarketClearing(Network, CommonMethods):
     
@@ -302,6 +303,28 @@ if __name__ == "__main__":
     ec.display_results()
 
     net = createNetwork(ec.map_g, ec.map_d, ec.map_w)
+    
+
+    # Extract the lambda values
+    lambdas = list(ec.data.lambda_.values())
+
+    # Flatten the lambda values
+    lambda_values = [value for sublist in lambdas for value in sublist.values()]
+
+    # Generate the theoretical quantiles
+    theoretical_quantiles = stats.norm.ppf(np.linspace(0.01, 0.99, len(lambda_values)))
+
+    # Generate the empirical quantiles
+    empirical_quantiles = np.quantile(lambda_values, np.linspace(0.01, 0.99, len(lambda_values)))
+
+    # Plot the QQ plot
+    plt.scatter(theoretical_quantiles, empirical_quantiles)
+    plt.plot([theoretical_quantiles.min(), theoretical_quantiles.max()], [theoretical_quantiles.min(), theoretical_quantiles.max()], color='red')
+    plt.xlabel('Theoretical Quantiles')
+    plt.ylabel('Empirical Quantiles')
+    plt.title('QQ Plot of Lambda Results')
+    plt.show()
+
     #drawNormal(net)
     #drawLMP(net, ec.data.lambda_, ec.data.loading)
     #drawTheta(net, ec.data.theta, ec.data.loading)

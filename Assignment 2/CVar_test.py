@@ -194,6 +194,11 @@ class OfferingStrategy(DataInit):
         else:
             raise NotImplementedError
         
+        self.results.total_profits = {w:
+            self.results.DA_profits[w] + self.results.BA_profits[w]
+            for w in self.SCENARIOS
+        }
+
         self.results.expected_profit = sum(self.pi[w] * (self.results.DA_profits[w] +
                                                          self.results.BA_profits[w]) for w in self.SCENARIOS)
         
@@ -208,12 +213,13 @@ class OfferingStrategy(DataInit):
         print(self.results.CVaR)
 
 if __name__ == '__main__':
-
+    ##### ---------- Step: Test the model with two-price scheme ---------- #####
+    # Step 1.3: Test the model with two-price scheme
     beta_values = np.linspace(0, 1, 21)
     expected_profits = []
     CVaRs = []
     for beta in beta_values:
-        offering_strategy = OfferingStrategy(price_scheme='two_price', alpha = 0.95, beta = beta)
+        offering_strategy = OfferingStrategy(price_scheme='two_price', alpha = 0.9, beta = beta)
         offering_strategy.run_model()
         offering_strategy.calculate_results()
         expected_profits.append(offering_strategy.results.expected_profit)
@@ -221,6 +227,102 @@ if __name__ == '__main__':
 
     # plot results with both lines and points
     plt.plot(CVaRs, expected_profits, label='Expected profit', marker='o')
+    for ix, beta in enumerate(beta_values):
+        plt.annotate(round(float(beta),2), (CVaRs[ix], expected_profits[ix]))
     plt.xlabel('CVaR')
     plt.ylabel('Expected profit')
     plt.show()
+
+    ### For two-price scheme the optimal beta is decided to be 0.3
+    beta = 0.25
+    offering_strategy = OfferingStrategy(price_scheme='two_price', alpha = 0.9, beta = beta)
+    offering_strategy.run_model()
+    offering_strategy.calculate_results()
+
+    oos_profits = []
+
+    for scenario in offering_strategy.test_scenarios:
+        wind = scenario['wind']
+        lambda_DA = scenario['lambda']
+        imbalance = scenario['system_balance']
+        DA_profits = sum(lambda_DA[t] * offering_strategy.data.DA_dispatch_values[t] for t in offering_strategy.TIMES)
+        BA_profits = sum(0.9**(imbalance[t]) * lambda_DA[t] * max(wind[t] - offering_strategy.data.DA_dispatch_values[t], 0)
+                - 1.2**(1 - imbalance[t]) * lambda_DA[t] * max(offering_strategy.data.DA_dispatch_values[t] - wind[t], 0)
+                for t in offering_strategy.TIMES)
+        Total_profits = DA_profits + BA_profits
+        oos_profits.append(Total_profits)
+    
+    average_oos_profit = np.mean(oos_profits)
+    print('Average out-of-sample profit: ', average_oos_profit)
+    print('Average in-sample profit: ', offering_strategy.results.expected_profit)
+
+    # Plot the oos_profits as a histogram
+    plt.hist(oos_profits, bins=20)
+    plt.xlabel('Out-of-sample profits')
+    plt.ylabel('Frequency')
+    plt.show()
+
+    # Plot the in sample profits as a histogram
+    in_sample_profits = list(offering_strategy.results.total_profits.values())
+    plt.hist(in_sample_profits, bins=20)
+    plt.xlabel('In-sample profits')
+    plt.ylabel('Frequency')
+    plt.show()
+
+    ##### ---------- Step: Test the model with one-price scheme ---------- #####
+    # Step 1.3: Test the model with two-price scheme
+    beta_values = np.linspace(0, 1, 21)
+    expected_profits = []
+    CVaRs = []
+    for beta in beta_values:
+        offering_strategy = OfferingStrategy(price_scheme='one_price', alpha = 0.9, beta = beta)
+        offering_strategy.run_model()
+        offering_strategy.calculate_results()
+        expected_profits.append(offering_strategy.results.expected_profit)
+        CVaRs.append(offering_strategy.results.CVaR)
+
+    # plot results with both lines and points
+    plt.plot(CVaRs, expected_profits, label='Expected profit', marker='o')
+    for ix, beta in enumerate(beta_values):
+        plt.annotate(round(float(beta),2), (CVaRs[ix], expected_profits[ix]))
+    plt.xlabel('CVaR')
+    plt.ylabel('Expected profit')
+    plt.show()
+
+    ### For one-price scheme the optimal beta is decided to be 0.3
+    beta = 0.4
+    offering_strategy = OfferingStrategy(price_scheme='one_price', alpha = 0.9, beta = beta)
+    offering_strategy.run_model()
+    offering_strategy.calculate_results()
+
+    oos_profits = []
+
+    for scenario in offering_strategy.test_scenarios:
+        wind = scenario['wind']
+        lambda_DA = scenario['lambda']
+        DA_profits = sum(lambda_DA[t] * offering_strategy.data.DA_dispatch_values[t] for t in offering_strategy.TIMES)
+        BA_profits = sum(0.9 * lambda_DA[t] * max(wind[t] - offering_strategy.data.DA_dispatch_values[t], 0)
+                - 1.2 * lambda_DA[t] * max(offering_strategy.data.DA_dispatch_values[t] - wind[t], 0)
+                for t in offering_strategy.TIMES)
+        Total_profits = DA_profits + BA_profits
+        oos_profits.append(Total_profits)
+    
+    average_oos_profit = np.mean(oos_profits)
+    print('Average out-of-sample profit: ', average_oos_profit)
+
+    # Plot the oos_profits as a histogram
+    plt.hist(oos_profits, bins=20)
+    plt.xlabel('Out-of-sample profits')
+    plt.ylabel('Frequency')
+    plt.show()
+
+    # Plot the in sample profits as a histogram
+    in_sample_profits = list(offering_strategy.results.total_profits.values())
+    plt.hist(in_sample_profits, bins=20)
+    plt.xlabel('In-sample profits')
+    plt.ylabel('Frequency')
+    plt.show()
+
+
+
+
