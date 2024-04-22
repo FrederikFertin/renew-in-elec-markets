@@ -1,6 +1,6 @@
 import gurobipy as gb
 from gurobipy import GRB
-import etampy as np
+import numpy as np
 from scenario import DataInit
 import matplotlib.pyplot as plt
 
