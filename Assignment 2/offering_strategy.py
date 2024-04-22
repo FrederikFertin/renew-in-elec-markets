@@ -169,25 +169,19 @@ class OfferingStrategy(DataInit):
         print({t: round(self.data.DA_dispatch_values[t], 2) for t in self.TIMES})
 
 if __name__ == '__main__':
-    offering_strategy = OfferingStrategy(price_scheme='two_price')
+    offering_strategy = OfferingStrategy(price_scheme='one_price')
     offering_strategy.run_model()
     offering_strategy.calculate_results()
     offering_strategy.display_results()
 
-    # Two types of plots to visualize the results
-    # Plot mosaic of histograms of total profit and broken down into DA and BA profits
-    fig, ax = plt.subplot_mosaic([["upper", "upper"],["lower right", "lower left"]], layout = "constrained")
-    ax["upper"].hist(list(offering_strategy.results.total_profits.values()), bins=20, color='b', alpha=0.7, label='Total profits')
-    ax["upper"].set_title('Total profits')
-    ax["lower left"].hist(list(offering_strategy.results.BA_profits.values()), bins=20, color='g', alpha=0.7, label='BA profits')
-    ax["lower left"].set_title('BA profits')
-    ax["lower right"].hist(list(offering_strategy.results.DA_profits.values()), bins=20, color='r', alpha=0.7, label='DA profits')
-    ax["lower right"].set_title('DA profits')
-    plt.show()
     
     # Plot the profit histograms in three subplots above each other with shared x-axis
     fig, ax = plt.subplots(3, 1, sharex=True)
     ax[0].hist(list(offering_strategy.results.total_profits.values()), bins=20, color='b', alpha=0.7, label='Total profits')
+    ax[0].legend()
     ax[1].hist(list(offering_strategy.results.BA_profits.values()), bins=20, color='g', alpha=0.7, label='BA profits')
+    ax[1].legend()
     ax[2].hist(list(offering_strategy.results.DA_profits.values()), bins=20, color='r', alpha=0.7, label='DA profits')
+    ax[2].legend()
+    ax[2].set_xlabel('Profits')
     plt.show()
