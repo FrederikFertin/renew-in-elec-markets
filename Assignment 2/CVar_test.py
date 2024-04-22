@@ -173,19 +173,19 @@ class OfferingStrategy(DataInit):
         self._save_data()
 
     def calculate_results(self):
-        self.results.DA_expected_profits = {w:
+        self.results.DA_profits = {w:
             sum(self.lambda_DA[t, w] * self.data.DA_dispatch_values[t] for t in self.TIMES)
             for w in self.SCENARIOS
         }
         if self.price_scheme == 'one_price':
-            self.results.BA_expected_profits = {w:
+            self.results.BA_profits = {w:
                 sum(0.9 * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
                 - 1.2 * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t][w]
                 for t in self.TIMES)
                 for w in self.SCENARIOS
             }
         elif self.price_scheme == 'two_price':
-            self.results.BA_expected_profits = {w:
+            self.results.BA_profits = {w:
                 sum(0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
                 - 1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t][w]
                 for t in self.TIMES)
@@ -194,8 +194,8 @@ class OfferingStrategy(DataInit):
         else:
             raise NotImplementedError
         
-        self.results.expected_profit = sum(self.pi[w] * (self.results.DA_expected_profits[w] +
-                                                                  self.results.BA_expected_profits[w]) for w in self.SCENARIOS)
+        self.results.expected_profit = sum(self.pi[w] * (self.results.DA_profits[w] +
+                                                         self.results.BA_profits[w]) for w in self.SCENARIOS)
         
         self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(self.pi[w] * self.data.eta_values[w] for w in self.SCENARIOS)
 
@@ -209,7 +209,7 @@ class OfferingStrategy(DataInit):
 
 if __name__ == '__main__':
 
-    beta_values = np.linspace(0, 100, 11)
+    beta_values = np.linspace(0, 1, 21)
     expected_profits = []
     CVaRs = []
     for beta in beta_values:
@@ -219,7 +219,8 @@ if __name__ == '__main__':
         expected_profits.append(offering_strategy.results.expected_profit)
         CVaRs.append(offering_strategy.results.CVaR)
 
-    plt.plot(CVaRs, expected_profits)
+    # plot results with both lines and points
+    plt.plot(CVaRs, expected_profits, label='Expected profit', marker='o')
     plt.xlabel('CVaR')
     plt.ylabel('Expected profit')
     plt.show()
