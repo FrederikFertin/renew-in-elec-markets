@@ -230,7 +230,7 @@ if __name__ == '__main__':
     expected_profits = []
     CVaRs = []
     for beta in beta_values:
-        offering_strategy = OfferingStrategy(price_scheme='two_price', alpha = 0.9, beta = beta)
+        offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha = 0.9, beta = beta)
         offering_strategy.run_model()
         offering_strategy.calculate_results()
         expected_profits.append(offering_strategy.results.expected_profit)
@@ -246,7 +246,7 @@ if __name__ == '__main__':
 
     ### For two-price scheme the optimal beta is decided to be 0.3
     beta = 0.25
-    offering_strategy = OfferingStrategy(price_scheme='two_price', alpha = 0.9, beta = beta)
+    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha = 0.9, beta = beta)
     offering_strategy.run_model()
     offering_strategy.calculate_results()
 
@@ -286,7 +286,7 @@ if __name__ == '__main__':
     expected_profits = []
     CVaRs = []
     for beta in beta_values:
-        offering_strategy = OfferingStrategy(price_scheme='one_price', alpha = 0.9, beta = beta)
+        offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha = 0.9, beta = beta)
         offering_strategy.run_model()
         offering_strategy.calculate_results()
         expected_profits.append(offering_strategy.results.expected_profit)
@@ -302,7 +302,7 @@ if __name__ == '__main__':
 
     ### For one-price scheme the optimal beta is decided to be 0.3
     beta = 0.4
-    offering_strategy = OfferingStrategy(price_scheme='one_price', alpha = 0.9, beta = beta)
+    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha = 0.9, beta = beta)
     offering_strategy.run_model()
     offering_strategy.calculate_results()
 
