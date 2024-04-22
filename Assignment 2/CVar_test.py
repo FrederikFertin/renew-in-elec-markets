@@ -1,6 +1,6 @@
 import gurobipy as gb
 from gurobipy import GRB
-import numpy as np
+import etampy as np
 from scenario import DataInit
 import matplotlib.pyplot as plt
 
@@ -55,8 +55,8 @@ class OfferingStrategy(DataInit):
             for t in self.TIMES for w in self.SCENARIOS
         }
         self.variables.zeta = self.model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name='zeta')
-        self.variables.nu = {
-            w : self.model.addVar(lb = 0, name = 'nu{0}'.format(w))
+        self.variables.eta = {
+            w : self.model.addVar(lb = 0, name = 'eta{0}'.format(w))
             for w in self.SCENARIOS
         }
 
@@ -85,7 +85,7 @@ class OfferingStrategy(DataInit):
             )
         else:
             raise NotImplementedError
-        CVar = self.variables.zeta - 1/(1-self.alpha) * gb.quicksum(self.pi[w] * self.variables.nu[w] for w in self.SCENARIOS)
+        CVar = self.variables.zeta - 1/(1-self.alpha) * gb.quicksum(self.pi[w] * self.variables.eta[w] for w in self.SCENARIOS)
 
         objective = (1-self.beta) * (DA_profits + UP_profits - DOWN_costs) + self.beta * CVar
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
@@ -106,21 +106,21 @@ class OfferingStrategy(DataInit):
         
 
         if self.price_scheme == 'one_price':
-            self.constraints.nu_constraint = {w: self.model.addLConstr(
+            self.constraints.eta_constraint = {w: self.model.addLConstr(
                 - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] + 
                               0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[t, w] -
                               1.2 * self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w]
-                              for t in self.TIMES) + self.variables.zeta - self.variables.nu[w],
+                              for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
                 gb.GRB.LESS_EQUAL,
-                0, name = 'nu constraint') for w in self.SCENARIOS}
+                0, name = 'eta constraint') for w in self.SCENARIOS}
         elif self.price_scheme == 'two_price':
-            self.constraints.nu_constraint = {w: self.model.addLConstr(
+            self.constraints.eta_constraint = {w: self.model.addLConstr(
                 - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] + 
                               0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_UP[t,w] -
                               1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_DOWN[t,w]
-                              for t in self.TIMES) + self.variables.zeta - self.variables.nu[w],
+                              for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
                 gb.GRB.LESS_EQUAL,
-                0, name = 'nu constraint') for w in self.SCENARIOS}
+                0, name = 'eta constraint') for w in self.SCENARIOS}
         else:
             raise NotImplementedError
 
@@ -165,8 +165,8 @@ class OfferingStrategy(DataInit):
         # save zeta value
         self.data.zeta = self.variables.zeta.x
 
-        # save nu values
-        self.data.nu_values = {w: self.variables.nu[w].x for w in self.SCENARIOS}
+        # save eta values
+        self.data.eta_values = {w: self.variables.eta[w].x for w in self.SCENARIOS}
 
     def run_model(self):
         self.model.optimize()
@@ -197,7 +197,7 @@ class OfferingStrategy(DataInit):
         self.results.expected_profit = sum(self.pi[w] * (self.results.DA_expected_profits[w] +
                                                                   self.results.BA_expected_profits[w]) for w in self.SCENARIOS)
         
-        self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(self.pi[w] * self.data.nu_values[w] for w in self.SCENARIOS)
+        self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(self.pi[w] * self.data.eta_values[w] for w in self.SCENARIOS)
 
     def display_results(self):
         print()
