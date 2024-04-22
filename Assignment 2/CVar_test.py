@@ -209,7 +209,7 @@ class OfferingStrategy(DataInit):
 
 if __name__ == '__main__':
 
-    beta_values = np.linspace(0, 1, 11)
+    beta_values = np.linspace(0, 100, 11)
     expected_profits = []
     CVaRs = []
     for beta in beta_values:
@@ -218,14 +218,6 @@ if __name__ == '__main__':
         offering_strategy.calculate_results()
         expected_profits.append(offering_strategy.results.expected_profit)
         CVaRs.append(offering_strategy.results.CVaR)
-    
-
-    plt.plot(beta_values, expected_profits, label = 'Expected profit')
-    plt.plot(beta_values, CVaRs, label = 'CVaR')
-    plt.xlabel('Beta')
-    plt.ylabel('Value')
-    plt.legend()
-    plt.show()
 
     plt.plot(CVaRs, expected_profits)
     plt.xlabel('CVaR')
