@@ -25,16 +25,22 @@ class expando(object):
 
 class OfferingStrategy(DataInit):
 
-    def __init__(self, price_scheme: str, alpha: float, beta: float):
+    def __init__(self, risk_type: str, price_scheme: str, alpha: float = 0.95, beta: float = 0.5):
         super().__init__()
         self.generate_scenarios(n_wind=20, n_price=20, n_balance=3, train_size=0.25, seed=42)
         self.data = expando()  # build data attributes
         self.variables = expando()  # build variable attributes
         self.constraints = expando()  # build constraint attributes
         self.results = expando()  # build results attributes
+        self.risk_type = risk_type
         self.price_scheme = price_scheme
         self.alpha = alpha
-        self.beta = beta
+        if risk_type == 'neutral':
+            self.beta = 0
+        elif risk_type == 'averse':
+            self.beta = beta
+        else:
+            raise NotImplementedError
         self._build_model()  # build gurobi model
 
     def _build_variables(self):
@@ -54,11 +60,12 @@ class OfferingStrategy(DataInit):
             (t, w): self.model.addVar(lb=0, name='down-regulation {0}'.format(t))
             for t in self.TIMES for w in self.SCENARIOS
         }
-        self.variables.zeta = self.model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name='zeta')
-        self.variables.eta = {
-            w : self.model.addVar(lb = 0, name = 'eta{0}'.format(w))
-            for w in self.SCENARIOS
-        }
+        if self.risk_type == 'averse':
+            self.variables.zeta = self.model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name='zeta')
+            self.variables.eta = {
+                w : self.model.addVar(lb = 0, name = 'eta{0}'.format(w))
+                for w in self.SCENARIOS
+            }
 
     def _build_objective_function(self):
 
@@ -85,7 +92,10 @@ class OfferingStrategy(DataInit):
             )
         else:
             raise NotImplementedError
-        CVar = self.variables.zeta - 1/(1-self.alpha) * gb.quicksum(self.pi[w] * self.variables.eta[w] for w in self.SCENARIOS)
+        if self.risk_type == 'averse':
+            CVar = self.variables.zeta - 1/(1-self.alpha) * gb.quicksum(self.pi[w] * self.variables.eta[w] for w in self.SCENARIOS)
+        else:
+            CVar = 0
 
         objective = (1-self.beta) * (DA_profits + UP_profits - DOWN_costs) + self.beta * CVar
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
@@ -104,25 +114,25 @@ class OfferingStrategy(DataInit):
             name='regulation constraint')
             for w in self.SCENARIOS} for t in self.TIMES}
         
-
-        if self.price_scheme == 'one_price':
-            self.constraints.eta_constraint = {w: self.model.addLConstr(
-                - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] + 
-                              0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[t, w] -
-                              1.2 * self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w]
-                              for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
-                gb.GRB.LESS_EQUAL,
-                0, name = 'eta constraint') for w in self.SCENARIOS}
-        elif self.price_scheme == 'two_price':
-            self.constraints.eta_constraint = {w: self.model.addLConstr(
-                - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] + 
-                              0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_UP[t,w] -
-                              1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_DOWN[t,w]
-                              for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
-                gb.GRB.LESS_EQUAL,
-                0, name = 'eta constraint') for w in self.SCENARIOS}
-        else:
-            raise NotImplementedError
+        if self.risk_type == 'averse':
+            if self.price_scheme == 'one_price':
+                self.constraints.eta_constraint = {w: self.model.addLConstr(
+                    - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] +
+                                  0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[t, w] -
+                                  1.2 * self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w]
+                                  for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
+                    gb.GRB.LESS_EQUAL,
+                    0, name = 'eta constraint') for w in self.SCENARIOS}
+            elif self.price_scheme == 'two_price':
+                self.constraints.eta_constraint = {w: self.model.addLConstr(
+                    - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] +
+                                  0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_UP[t,w] -
+                                  1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_DOWN[t,w]
+                                  for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
+                    gb.GRB.LESS_EQUAL,
+                    0, name = 'eta constraint') for w in self.SCENARIOS}
+            else:
+                raise NotImplementedError
 
         
 
@@ -162,11 +172,12 @@ class OfferingStrategy(DataInit):
             self.variables.Delta_DOWN[t, w].x for w in self.SCENARIOS} for t in self.TIMES
         }
 
-        # save zeta value
-        self.data.zeta = self.variables.zeta.x
+        if self.risk_type == 'averse':
+            # save zeta value
+            self.data.zeta = self.variables.zeta.x
 
-        # save eta values
-        self.data.eta_values = {w: self.variables.eta[w].x for w in self.SCENARIOS}
+            # save eta values
+            self.data.eta_values = {w: self.variables.eta[w].x for w in self.SCENARIOS}
 
     def run_model(self):
         self.model.optimize()
@@ -193,11 +204,15 @@ class OfferingStrategy(DataInit):
             }
         else:
             raise NotImplementedError
-        
-        self.results.expected_profit = sum(self.pi[w] * (self.results.DA_profits[w] +
-                                                         self.results.BA_profits[w]) for w in self.SCENARIOS)
-        
-        self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(self.pi[w] * self.data.eta_values[w] for w in self.SCENARIOS)
+
+        self.results.total_profits = {w:
+            self.results.DA_profits[w] + self.results.BA_profits[w] for w in self.SCENARIOS
+        }
+        self.results.expected_profit = sum(
+            self.pi[w] * (self.results.DA_profits[w] + self.results.BA_profits[w]) for w in self.SCENARIOS
+        )
+        self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(self.pi[w] * self.data.eta_values[w]
+                            for w in self.SCENARIOS)
 
     def display_results(self):
         print()
