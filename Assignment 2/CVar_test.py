@@ -162,45 +162,72 @@ class OfferingStrategy(DataInit):
             self.variables.Delta_DOWN[t, w].x for w in self.SCENARIOS} for t in self.TIMES
         }
 
+        # save zeta value
+        self.data.zeta = self.variables.zeta.x
+
+        # save nu values
+        self.data.nu_values = {w: self.variables.nu[w].x for w in self.SCENARIOS}
+
     def run_model(self):
         self.model.optimize()
         self._save_data()
 
     def calculate_results(self):
-        self.results.DA_profits = {w:
-            self.lambda_DA[t, w] * self.data.DA_dispatch_values[t]
-            for t in self.TIMES for w in self.SCENARIOS
+        self.results.DA_expected_profits = {w:
+            sum(self.lambda_DA[t, w] * self.data.DA_dispatch_values[t] for t in self.TIMES)
+            for w in self.SCENARIOS
         }
         if self.price_scheme == 'one_price':
-            self.results.BA_profits = {w:
-                0.9 * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
+            self.results.BA_expected_profits = {w:
+                sum(0.9 * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
                 - 1.2 * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t][w]
-                for t in self.TIMES for w in self.SCENARIOS
+                for t in self.TIMES)
+                for w in self.SCENARIOS
             }
         elif self.price_scheme == 'two_price':
-            self.results.BA_profits = {w:
-                0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
+            self.results.BA_expected_profits = {w:
+                sum(0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
                 - 1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t][w]
-                for t in self.TIMES for w in self.SCENARIOS
+                for t in self.TIMES)
+                for w in self.SCENARIOS
             }
         else:
             raise NotImplementedError
-        self.results.total_profits = {w:
-            self.results.DA_profits[w] + self.results.BA_profits[w]
-            for w in self.SCENARIOS
-        }
         
+        self.results.expected_profit = sum(self.pi[w] * (self.results.DA_expected_profits[w] +
+                                                                  self.results.BA_expected_profits[w]) for w in self.SCENARIOS)
+        
+        self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(self.pi[w] * self.data.nu_values[w] for w in self.SCENARIOS)
+
     def display_results(self):
         print()
         print("-------------------   RESULTS  -------------------")
         print("Expected profit: ")
-        print(round(self.data.objective_value, 2))
-        print("Optimal bid: ")
-        print({t: round(self.data.DA_dispatch_values[t], 2) for t in self.TIMES})
+        print(self.results.expected_profit)
+        print("CVar: ")
+        print(self.results.CVaR)
 
 if __name__ == '__main__':
-    offering_strategy = OfferingStrategy(price_scheme='two_price', alpha = 0.95, beta = 0.2)
-    offering_strategy.run_model()
-    offering_strategy.calculate_results()
-    offering_strategy.display_results()
 
+    beta_values = np.linspace(0, 1, 11)
+    expected_profits = []
+    CVaRs = []
+    for beta in beta_values:
+        offering_strategy = OfferingStrategy(price_scheme='two_price', alpha = 0.95, beta = beta)
+        offering_strategy.run_model()
+        offering_strategy.calculate_results()
+        expected_profits.append(offering_strategy.results.expected_profit)
+        CVaRs.append(offering_strategy.results.CVaR)
+    
+
+    plt.plot(beta_values, expected_profits, label = 'Expected profit')
+    plt.plot(beta_values, CVaRs, label = 'CVaR')
+    plt.xlabel('Beta')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.show()
+
+    plt.plot(CVaRs, expected_profits)
+    plt.xlabel('CVaR')
+    plt.ylabel('Expected profit')
+    plt.show()
