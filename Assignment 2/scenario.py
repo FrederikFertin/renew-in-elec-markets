@@ -48,6 +48,8 @@ class DataInit:
         where the first element is the wind scenario, 'wind' with 24 elements,
         the second element is the price scenario, 'lambda' with 24 elements,
         and the third element is the balance scenario, 'system_balance' with 24 elements.
+
+        1 is system balance is in excess, 0 is if it is in deficit.
         """
 
         np.random.seed(seed)
