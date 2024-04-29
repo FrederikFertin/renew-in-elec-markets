@@ -37,7 +37,7 @@ class DataInit:
     def _balance_scenario_generator(self, n):
         return np.random.choice([0, 1], size=(n, 24), p=[0.4, 0.6])
 
-    def generate_scenarios(self, n_wind=20, n_price=20, n_balance=3, train_size=0.25, seed=42):
+    def generate_scenarios(self, n_wind=20, n_price=20, n_balance=3, seed=42):
         """
         Generates scenarios for wind, price and balance of format of list of dicts of arrays.
 
@@ -61,11 +61,18 @@ class DataInit:
                            'lambda' : price_scenarios[j],
                            'system_balance' : balance_scenarios[k]}
                            for i in range(n_wind) for j in range(n_price) for k in range(n_balance)]
-
         # Shuffle order of scenarios and split into train and test
         np.random.shuffle(self.scenarios)
-        self.train_scenarios = self.scenarios[:int(len(self.scenarios)*train_size)]
-        self.test_scenarios = self.scenarios[int(len(self.scenarios)*train_size):]
+
+    def create_train_test_split(self, test_size: int = 950, k: int | None = None):
+        if k is None:
+            self.train_scenarios = self.scenarios[test_size:]
+            self.test_scenarios = self.scenarios[:test_size]
+        else:
+            self.train_scenarios = self.scenarios[:k*test_size]
+            if test_size*(k+1) < len(self.scenarios):
+                self.train_scenarios.concat(self.scenarios[(k+1)*test_size:])
+            self.test_scenarios = self.scenarios[k*test_size:(k+1)*test_size]
 
         self.n_scenarios = len(self.train_scenarios)
         self.SCENARIOS = range(self.n_scenarios)
@@ -78,3 +85,4 @@ class DataInit:
 if __name__ == '__main__':
     data = DataInit()
     data.generate_scenarios()
+    data.create_train_test_split()
