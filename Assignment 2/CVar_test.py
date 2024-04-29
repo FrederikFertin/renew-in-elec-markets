@@ -31,7 +31,7 @@ class OfferingStrategy(DataInit):
             price_scheme: str,
             alpha: float = 0.9,
             beta: float = 0.5,
-            train_size: int = 950,
+            train_size: int = 250,
             k: int | None = None,
     ):
         super().__init__()
