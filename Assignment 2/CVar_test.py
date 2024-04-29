@@ -25,10 +25,18 @@ class expando(object):
 
 class OfferingStrategy(DataInit):
 
-    def __init__(self, risk_type: str, price_scheme: str, alpha: float = 0.95, beta: float = 0.5):
+    def __init__(
+            self,
+            risk_type: str,
+            price_scheme: str,
+            alpha: float = 0.9,
+            beta: float = 0.5,
+            train_size: int = 950,
+            k: int | None = None,
+    ):
         super().__init__()
         self.generate_scenarios(n_wind=20, n_price=20, n_balance=3, seed=42)
-        self.create_train_test_split()
+        self.create_train_test_split(train_size=train_size, k=k)
         self.data = expando()  # build data attributes
         self.variables = expando()  # build variable attributes
         self.constraints = expando()  # build constraint attributes
@@ -225,7 +233,7 @@ class OfferingStrategy(DataInit):
         print(self.results.CVaR)
 
     def calculate_oos_profits(self):
-        self.oos_profits = []
+        self.results.oos_profits = []
 
         for scenario in self.test_scenarios:
             wind = scenario['wind']
@@ -233,11 +241,11 @@ class OfferingStrategy(DataInit):
             imbalance = scenario['system_balance']
             DA_profits = sum(
                 lambda_DA[t] * self.data.DA_dispatch_values[t] for t in self.TIMES)
-            if self.price_scheme == 'one-price':
-                BA_profits = sum(0.9 * lambda_DA[t] * max(wind[t] - offering_strategy.data.DA_dispatch_values[t], 0)
-                                 - 1.2 * lambda_DA[t] * max(offering_strategy.data.DA_dispatch_values[t] - wind[t], 0)
-                                 for t in offering_strategy.TIMES)
-            elif self.price_scheme == 'two-price':
+            if self.price_scheme == 'one_price':
+                BA_profits = sum(0.9 * lambda_DA[t] * max(wind[t] - self.data.DA_dispatch_values[t], 0)
+                                 - 1.2 * lambda_DA[t] * max(self.data.DA_dispatch_values[t] - wind[t], 0)
+                                 for t in self.TIMES)
+            elif self.price_scheme == 'two_price':
                 BA_profits = sum(
                     0.9 ** (imbalance[t]) * lambda_DA[t] * max(wind[t] - self.data.DA_dispatch_values[t], 0)
                     - 1.2 ** (1 - imbalance[t]) * lambda_DA[t] * max(self.data.DA_dispatch_values[t] - wind[t],0)
@@ -245,9 +253,9 @@ class OfferingStrategy(DataInit):
             else:
                 raise NotImplementedError
             Total_profits = DA_profits + BA_profits
-            self.oos_profits.append(Total_profits)
+            self.results.oos_profits.append(Total_profits)
 
-        average_oos_profit = np.mean(self.oos_profits)
+        average_oos_profit = np.mean(self.results.oos_profits)
         print('Average out-of-sample profit: ', average_oos_profit)
         print('Average in-sample profit: ', self.results.expected_profit)
 
@@ -259,10 +267,11 @@ class OfferingStrategy(DataInit):
         plt.show()
 
     def plot_oos_profits(self):
-        plt.hist(self.oos_profits, bins=20, density=True)
+        plt.hist(self.results.oos_profits, bins=20, density=True)
         plt.xlabel('Out-of-sample profits')
         plt.ylabel('Frequency')
         plt.show()
+
 
 def plot_beta_vs_cvar(beta_values: list, price_scheme: str):
     expected_profits = []
@@ -282,8 +291,56 @@ def plot_beta_vs_cvar(beta_values: list, price_scheme: str):
     plt.ylabel('Expected profit')
     plt.show()
 
+def plot_train_size_vs_profit_diff(beta: float):
+    train_sizes = np.linspace(100, 1100, 11).astype(int)
+    profit_diffs = []
+
+    for train_size in train_sizes:
+        offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha = 0.9, beta = beta, train_size=train_size)
+        offering_strategy.run_model()
+        offering_strategy.calculate_results()
+        offering_strategy.calculate_oos_profits()
+
+        avg_is_profits = np.mean(list(offering_strategy.results.total_profits.values()))
+        avg_oos_profits = np.mean(offering_strategy.results.oos_profits)
+
+        profit_diffs.append(abs(avg_is_profits - avg_oos_profits))
+
+    plt.title("Train size vs profit differences")
+    plt.plot(train_sizes, profit_diffs)
+    plt.xlabel("Train size")
+    plt.ylabel("Absolute profit difference")
+    plt.show()
+
+def plot_train_size_vs_profit_diff_k_fold(beta: float):
+    train_sizes = [100, 200, 300, 400, 600]
+    profit_diffs = []
+
+    for train_size in train_sizes:
+        avg_is_profits = []
+        avg_oos_profits = []
+        for k in range(1200 // train_size):
+            offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta,
+                                                 train_size=train_size, k=k)
+            offering_strategy.run_model()
+            offering_strategy.calculate_results()
+            offering_strategy.calculate_oos_profits()
+
+            avg_is_profits.append(np.mean(list(offering_strategy.results.total_profits.values())))
+            avg_oos_profits.append(np.mean(offering_strategy.results.oos_profits))
+
+        profit_diffs.append(abs(np.mean(avg_is_profits) - np.mean(avg_oos_profits)))
+
+    plt.title("Train size vs profit differences using k-fold cross validation")
+    plt.plot(train_size, profit_diffs)
+    plt.xlabel("Train size")
+    plt.ylabel("Absolute profit difference")
+    plt.show()
 
 if __name__ == '__main__':
+    beta = 0.25
+    plot_train_size_vs_profit_diff_k_fold(beta=beta)
+
     ##### ---------- Step: Test the model with two-price scheme ---------- #####
     # Step 1.3: Test the model with two-price scheme
     beta_values = np.linspace(0, 1, 21)
@@ -291,7 +348,7 @@ if __name__ == '__main__':
 
     ### For two-price scheme the optimal beta is decided to be 0.3
     beta = 0.25
-    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha = 0.9, beta = beta)
+    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha = 0.9, beta=beta)
     offering_strategy.run_model()
     offering_strategy.calculate_results()
 
@@ -317,6 +374,10 @@ if __name__ == '__main__':
     offering_strategy.plot_oos_profits()
     offering_strategy.plot_is_profits()
 
+    # Step 1.5: Cross validation
+    # Evaluate difference between expected in- and out-of-sample profits
+    beta = 0.25
+    plot_train_size_vs_profit_diff(beta=beta)
 
-
-
+    # Perform 6-fold cross validation
+    plot_train_size_vs_profit_diff_k_fold(beta=beta)

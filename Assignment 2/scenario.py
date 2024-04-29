@@ -64,15 +64,15 @@ class DataInit:
         # Shuffle order of scenarios and split into train and test
         np.random.shuffle(self.scenarios)
 
-    def create_train_test_split(self, test_size: int = 950, k: int | None = None):
+    def create_train_test_split(self, train_size: int = 950, k: int | None = None):
         if k is None:
-            self.train_scenarios = self.scenarios[test_size:]
-            self.test_scenarios = self.scenarios[:test_size]
+            self.train_scenarios = self.scenarios[:train_size]
+            self.test_scenarios = self.scenarios[train_size:]
         else:
-            self.train_scenarios = self.scenarios[:k*test_size]
-            if test_size*(k+1) < len(self.scenarios):
-                self.train_scenarios.concat(self.scenarios[(k+1)*test_size:])
-            self.test_scenarios = self.scenarios[k*test_size:(k+1)*test_size]
+            self.train_scenarios = self.scenarios[k * train_size:(k + 1) * train_size]
+            self.test_scenarios = self.scenarios[:k*train_size]
+            if train_size*(k+1) < len(self.scenarios):
+                self.test_scenarios.extend(self.scenarios[(k+1)*train_size:])
 
         self.n_scenarios = len(self.train_scenarios)
         self.SCENARIOS = range(self.n_scenarios)
