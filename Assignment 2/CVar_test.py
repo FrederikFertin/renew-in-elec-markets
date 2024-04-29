@@ -253,13 +253,13 @@ class OfferingStrategy(DataInit):
 
     def plot_is_profits(self):
         in_sample_profits = list(self.results.total_profits.values())
-        plt.hist(in_sample_profits, bins=20)
+        plt.hist(in_sample_profits, bins=20, density=True)
         plt.xlabel('In-sample profits')
         plt.ylabel('Frequency')
         plt.show()
 
     def plot_oos_profits(self):
-        plt.hist(self.oos_profits, bins=20)
+        plt.hist(self.oos_profits, bins=20, density=True)
         plt.xlabel('Out-of-sample profits')
         plt.ylabel('Frequency')
         plt.show()
