@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import random
 import numpy as np
 
+# TODO
+    # - Fix ALSO-X
+    # - Check CVar
 
 
 
@@ -41,14 +44,15 @@ class expando(object):
 
 class ancillary_service(DataInit):
 
-    def __init__(self, solution_technique: str, n_scenarios : int, length : int):
+    def __init__(self, solution_technique: str, n_scenarios : int, length : int, eps : float):
         super().__init__(n_scenarios, length)
         self.data = expando()  # build data attributes
         self.variables = expando()  # build variable attributes
         self.constraints = expando()  # build constraint attributes
         self.results = expando()  # build results attributes
         self.solution_technique = solution_technique
-        self.q = 0.1 * len(self.SCENARIOS) * len(self.TIMES)
+        self.eps = eps
+        self.q = self.eps * len(self.SCENARIOS) * len(self.TIMES)
         self._build_model()  # build gurobi model
         
     
@@ -84,7 +88,7 @@ class ancillary_service(DataInit):
                 for w in self.SCENARIOS} for t in self.TIMES
             }
             self.constraints.violation_limit = self.model.addConstr(
-                gb.quicksum(self.variables.y[t, w] for t in self.TIMES for w in self.SCENARIOS) <= 0.1 * len(self.SCENARIOS) * len(self.TIMES)) 
+                gb.quicksum(self.variables.y[t, w] for t in self.TIMES for w in self.SCENARIOS) <= self.eps * len(self.SCENARIOS) * len(self.TIMES)) 
         
         elif self.solution_technique == 'CVar':
             self.constraints.violation_constraints = {t: {w: self.model.addConstr(
@@ -92,7 +96,7 @@ class ancillary_service(DataInit):
                 for w in self.SCENARIOS} for t in self.TIMES
             }
             self.constraints.violation_limit = self.model.addConstr(1/(len(self.SCENARIOS) * len(self.TIMES)) * gb.quicksum(self.variables.xi[t, w] for t in self.TIMES for w in self.SCENARIOS) 
-                                                               <= 0.9 * self.variables.beta)
+                                                               <= (1-self.eps) * self.variables.beta)
             self.constraints.cvar_constraint = {t: {w: self.model.addConstr(
                 self.variables.beta <= self.variables.xi[t, w], name='cvar constraint {0}'.format(t)) for w in self.SCENARIOS} for t in self.TIMES              
             }
@@ -107,7 +111,7 @@ class ancillary_service(DataInit):
             self.model.optimize()
             self._save_data()
             self.P = sum((self.data.y[t, w] < 10E-6) for t in self.TIMES for w in self.SCENARIOS)/ (len(self.TIMES) * len(self.SCENARIOS))
-            if self.P >= 0.9:
+            if self.P >= (1-self.eps):
                 q_underline = self.q
             else:
                 q_overline = self.q
@@ -154,14 +158,17 @@ class ancillary_service(DataInit):
 if __name__ == '__main__':
  
     
-    #anc = ancillary_service('CVar', 50, 60)
+    #anc = ancillary_service('CVar', 50, 60, 0.1)
     #anc.run_model()
     
-    #anc = ancillary_service('MILP', 50, 60)
+    anc = ancillary_service('MILP', 50, 60, 0.1)
     #anc.run_model()
 
-    anc = ancillary_service('ALSO-X', 50, 60)
+    #anc = ancillary_service('ALSO-X', 50, 60, 0.1)
     anc.run_model()
-    
+    c = anc.data.c_up
+    q = np.repeat(c, 60)
     t = anc.scenarios
     plt.plot(t, alpha = 0.2)
+    plt.plot(q, 'r')
+    plt.show()
