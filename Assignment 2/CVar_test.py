@@ -338,13 +338,10 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float):
     plt.show()
 
 if __name__ == '__main__':
-    beta = 0.25
-    plot_train_size_vs_profit_diff_k_fold(beta=beta)
-
     ##### ---------- Step: Test the model with two-price scheme ---------- #####
     # Step 1.3: Test the model with two-price scheme
     beta_values = np.linspace(0, 1, 21)
-    # plot_beta_vs_cvar(beta_values, 'two_price')
+    plot_beta_vs_cvar(beta_values, 'two_price')
 
     ### For two-price scheme the optimal beta is decided to be 0.3
     beta = 0.25
