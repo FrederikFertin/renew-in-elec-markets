@@ -2,28 +2,32 @@ import gurobipy as gb
 import matplotlib.pyplot as plt
 import random
 import numpy as np
+from typing import Union
 
 # TODO
     # - Fix ALSO-X
     # - Check CVar
+    # - Split into training and testing data
 
+random.seed(42)
+np.random.seed(42)
 
 
 class DataInit:
-    def __init__(self, n_scenarios, length):
+    def __init__(self):
        
-        self.SCENARIOS = range(n_scenarios)
-        self.TIMES = range(length)
-        self.scenarios = self._generate_load_profiles(n_scenarios, length)
+        self.SCENARIOS = range(200)
+        self.TIMES = range(60)
+        self.scenarios = self._generate_load_profiles()
         
-    def _generate_load_profiles(self, n, l):
+    def _generate_load_profiles(self):
         load_profiles = []
         
-        for _ in range(n):
+        for _ in self.SCENARIOS:
             load_profile = [random.randint(300, 500)]  # Start with an initial load
             
-            for _ in range(1, l):
-                load = load_profile[-1] + random.randint(-25, 25)  # Randomly increase or decrease the load by 1
+            for _ in range(1, 60):
+                load = load_profile[-1] + random.randint(-25, 25)  # Randomly increase or decrease the load by up to 25
                 if load > 500:
                     load = 500
                 elif load < 200:
@@ -33,6 +37,20 @@ class DataInit:
             load_profiles.append(load_profile)
         
         return np.array(load_profiles).T
+    
+    def create_train_test_split(self, train_size: int = 50, k: Union[int, None] = None):
+        if k is None:
+            self.train_scenarios = self.scenarios[:,:train_size]
+            self.test_scenarios = self.scenarios[:,train_size:]
+        else:
+            self.train_scenarios = self.scenarios[:,k * train_size:(k + 1) * train_size]
+            self.test_scenarios = self.scenarios[:,:k*train_size]
+            if train_size*(k+1) < len(self.scenarios):
+                self.test_scenarios.extend(self.scenarios[:,(k+1)*train_size:])
+
+        self.n_scenarios = len(self.train_scenarios[0])
+        self.SCENARIOS = range(self.n_scenarios)
+        self.pi = np.ones(self.n_scenarios)/self.n_scenarios
     
 
     
@@ -44,8 +62,9 @@ class expando(object):
 
 class ancillary_service(DataInit):
 
-    def __init__(self, solution_technique: str, n_scenarios : int, length : int, eps : float):
-        super().__init__(n_scenarios, length)
+    def __init__(self, solution_technique: str, eps : float):
+        super().__init__()
+        self.create_train_test_split()
         self.data = expando()  # build data attributes
         self.variables = expando()  # build variable attributes
         self.constraints = expando()  # build constraint attributes
@@ -84,7 +103,7 @@ class ancillary_service(DataInit):
     def _build_constraints(self):
         if (self.solution_technique == 'MILP' or self.solution_technique == 'ALSO-X'):
             self.constraints.violation_constraints = {t: {w: self.model.addConstr(
-                self.variables.c_up - self.scenarios[t,w] <= self.variables.y[t, w] * 500, name='violation constraint {0}'.format(t))  # Check big M.
+                self.variables.c_up - self.train_scenarios[t,w] <= self.variables.y[t, w] * 500, name='violation constraint {0}'.format(t))  # Check big M.
                 for w in self.SCENARIOS} for t in self.TIMES
             }
             self.constraints.violation_limit = self.model.addConstr(
@@ -92,7 +111,7 @@ class ancillary_service(DataInit):
         
         elif self.solution_technique == 'CVar':
             self.constraints.violation_constraints = {t: {w: self.model.addConstr(
-                self.variables.c_up - self.scenarios[t,w] <= self.variables.xi[t, w], name='violation constraint {0}'.format(t)) 
+                self.variables.c_up - self.train_scenarios[t,w] <= self.variables.xi[t, w], name='violation constraint {0}'.format(t)) 
                 for w in self.SCENARIOS} for t in self.TIMES
             }
             self.constraints.violation_limit = self.model.addConstr(1/(len(self.SCENARIOS) * len(self.TIMES)) * gb.quicksum(self.variables.xi[t, w] for t in self.TIMES for w in self.SCENARIOS) 
@@ -157,18 +176,50 @@ class ancillary_service(DataInit):
 
 if __name__ == '__main__':
  
+    # 2.1/2.2
+    #anc = ancillary_service('CVar', 0.1)
+    anc = ancillary_service('MILP',  0.1)
+    #anc = ancillary_service('ALSO-X',  0.1)
     
-    #anc = ancillary_service('CVar', 50, 60, 0.1)
-    #anc.run_model()
-    
-    anc = ancillary_service('MILP', 50, 60, 0.1)
-    #anc.run_model()
-
-    #anc = ancillary_service('ALSO-X', 50, 60, 0.1)
     anc.run_model()
     c = anc.data.c_up
-    q = np.repeat(c, 60)
-    t = anc.scenarios
-    plt.plot(t, alpha = 0.2)
-    plt.plot(q, 'r')
+    reserve = np.repeat(c, 60)
+    fig, axs = plt.subplots(2)
+    train = anc.train_scenarios
+    axs[0].plot(train, alpha = 0.2)
+    axs[0].plot(reserve, 'r')
+    axs[0].set_title('Training data')
+    
+    test = anc.test_scenarios
+    axs[1].plot(test, alpha = 0.2)
+    axs[1].plot(reserve, 'r', label = 'Reserve')
+    axs[1].set_title('Test data')
+    axs[1].legend()
     plt.show()
+    
+    print("Violations of reserve capacity bid:", round(sum(sum(test < c))/(np.size(test))*100,2), " %")
+    print("Average shortfall:", -(test[test < c]-c).mean().round(2), " kW")
+    
+    
+    # 2.3
+    bids = []
+    violations = []
+    eps = np.arange(0, 0.22, 0.02)
+    for e in eps:
+        anc = ancillary_service('MILP',  e)
+        anc.run_model()
+        bids.append(anc.data.c_up)
+        violations.append(sum(sum(anc.test_scenarios < anc.data.c_up))/(np.size(anc.test_scenarios))*100)
+    
+    # Plot bids and violations as functino of epsilon in one plot with dual y-axis
+    fig, ax1 = plt.subplots()
+    ax1.plot(eps, bids, 'b-')
+    ax1.set_xlabel('Epsilon')
+    ax1.set_ylabel('Bid quantity', color='b')
+    ax1.tick_params('y', colors='b')
+    ax2 = ax1.twinx()
+    ax2.plot(eps, violations, 'r-')
+    ax2.set_ylabel('Violations (%)', color='r')
+    ax2.tick_params('y', colors='r')
+    plt.show()
+    
