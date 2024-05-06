@@ -190,6 +190,7 @@ def out_of_sample_analysis(anc):
     axs[1].plot(bid, 'r', label = 'Bid quantity')
     axs[1].set_title('Out-of-sample data')
     axs[1].set_ylabel('Load (kW)')
+    axs[1].set_xlabel('Time [min]')
     axs[1].legend()
     plt.show()
     
