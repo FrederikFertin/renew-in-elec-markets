@@ -83,17 +83,17 @@ class ancillary_service(DataInit):
 
         if self.solution_technique == 'MILP':
             self.variables.y = {
-                (t, w): self.model.addVar(vtype=gb.GRB.BINARY, lb=0, name='violation {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
+                (t, w): self.model.addVar(vtype=gb.GRB.BINARY, name='violation {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
             }
         elif self.solution_technique == 'ALSO-X':
             self.variables.y = {
                 (t, w): self.model.addVar(lb=0, ub = 1, name='violation {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
             }
-        elif self.solution_technique == 'CVar':
+        elif self.solution_technique == 'CVaR':
             self.variables.beta = self.model.addVar(ub=0, name='Weight')
 
-            self.variables.xi = {
-                (t, w): self.model.addVar(lb=0, name='xi {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
+            self.variables.zeta = {
+                (t, w): self.model.addVar(lb=0, name='zeta {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
             }
 
     def _build_objective_function(self):
@@ -103,28 +103,29 @@ class ancillary_service(DataInit):
     def _build_constraints(self):
         if (self.solution_technique == 'MILP' or self.solution_technique == 'ALSO-X'):
             self.constraints.violation_constraints = {t: {w: self.model.addConstr(
-                self.variables.c_up - self.train_scenarios[t,w] <= self.variables.y[t, w] * 500, name='violation constraint {0}'.format(t))  # Check big M.
+                self.variables.c_up - self.train_scenarios[t,w] <= self.variables.y[t, w] * 300, name='violation constraint {0}'.format(t))  # Check big M.
                 for w in self.SCENARIOS} for t in self.TIMES
             }
             self.constraints.violation_limit = self.model.addConstr(
                 gb.quicksum(self.variables.y[t, w] for t in self.TIMES for w in self.SCENARIOS) <= self.eps * len(self.SCENARIOS) * len(self.TIMES)) 
         
-        elif self.solution_technique == 'CVar':
+        elif self.solution_technique == 'CVaR':
             self.constraints.violation_constraints = {t: {w: self.model.addConstr(
-                self.variables.c_up - self.train_scenarios[t,w] <= self.variables.xi[t, w], name='violation constraint {0}'.format(t)) 
+                self.variables.c_up - self.train_scenarios[t,w] <= self.variables.zeta[t, w], name='violation constraint {0}'.format(t)) 
                 for w in self.SCENARIOS} for t in self.TIMES
             }
-            self.constraints.violation_limit = self.model.addConstr(1/(len(self.SCENARIOS) * len(self.TIMES)) * gb.quicksum(self.variables.xi[t, w] for t in self.TIMES for w in self.SCENARIOS) 
+            self.constraints.violation_limit = self.model.addConstr(
+                1/(len(self.SCENARIOS) * len(self.TIMES)) * gb.quicksum(self.variables.zeta[t, w] for t in self.TIMES for w in self.SCENARIOS) 
                                                                <= (1-self.eps) * self.variables.beta)
             self.constraints.cvar_constraint = {t: {w: self.model.addConstr(
-                self.variables.beta <= self.variables.xi[t, w], name='cvar constraint {0}'.format(t)) for w in self.SCENARIOS} for t in self.TIMES              
+                self.variables.beta <= self.variables.zeta[t, w], name='CVaR constraint {0}'.format(t)) for w in self.SCENARIOS} for t in self.TIMES              
             }
         else:
             raise ValueError('Invalid solution technique')
     
     def _also_X(self):
         q_underline = 0
-        q_overline = self.q
+        q_overline = self.eps * len(self.SCENARIOS)**2
         while q_overline - q_underline > 10E-5:
             self.q = (q_underline + q_overline) / 2
             self.model.optimize()
@@ -154,9 +155,9 @@ class ancillary_service(DataInit):
         
         if (self.solution_technique == 'MILP' or self.solution_technique == 'ALSO-X'):
             self.data.y = {(t, w): self.variables.y[t, w].X for t in self.TIMES for w in self.SCENARIOS}
-        elif self.solution_technique == 'CVar':
+        elif self.solution_technique == 'CVaR':
             self.data.beta = self.variables.beta.X
-            self.data.xi = {(t, w): self.variables.xi[t, w].X for t in self.TIMES for w in self.SCENARIOS}
+            self.data.zeta = {(t, w): self.variables.zeta[t, w].X for t in self.TIMES for w in self.SCENARIOS}
             
     def run_model(self):
         if self.solution_technique == 'ALSO-X':
@@ -164,8 +165,6 @@ class ancillary_service(DataInit):
         self.model.optimize()
         self._save_data()
 
-    def calculate_results(self):
-        ...
         
     def display_results(self):
         print()
@@ -174,52 +173,63 @@ class ancillary_service(DataInit):
         print(self.data.c_up)
         
 
-if __name__ == '__main__':
- 
-    # 2.1/2.2
-    #anc = ancillary_service('CVar', 0.1)
-    anc = ancillary_service('MILP',  0.1)
-    #anc = ancillary_service('ALSO-X',  0.1)
-    
-    anc.run_model()
+def out_of_sample_analysis(anc):
     c = anc.data.c_up
-    reserve = np.repeat(c, 60)
+    bid = np.repeat(c, 60)
     fig, axs = plt.subplots(2)
     train = anc.train_scenarios
     axs[0].plot(train, alpha = 0.2)
-    axs[0].plot(reserve, 'r')
+    axs[0].plot(bid, 'r')
     axs[0].set_title('Training data')
     
     test = anc.test_scenarios
     axs[1].plot(test, alpha = 0.2)
-    axs[1].plot(reserve, 'r', label = 'Reserve')
+    axs[1].plot(bid, 'r', label = 'Bid quantity')
     axs[1].set_title('Test data')
     axs[1].legend()
     plt.show()
     
     print("Violations of reserve capacity bid:", round(sum(sum(test < c))/(np.size(test))*100,2), " %")
     print("Average shortfall:", -(test[test < c]-c).mean().round(2), " kW")
-    
-    
-    # 2.3
+
+
+def p90_variations(eps):
     bids = []
     violations = []
-    eps = np.arange(0, 0.22, 0.02)
+    shortfalls = []
     for e in eps:
         anc = ancillary_service('MILP',  e)
         anc.run_model()
         bids.append(anc.data.c_up)
         violations.append(sum(sum(anc.test_scenarios < anc.data.c_up))/(np.size(anc.test_scenarios))*100)
+        shortfalls.append(-(anc.test_scenarios[anc.test_scenarios < anc.data.c_up]-anc.data.c_up).mean())
     
     # Plot bids and violations as functino of epsilon in one plot with dual y-axis
     fig, ax1 = plt.subplots()
-    ax1.plot(eps, bids, 'b-')
-    ax1.set_xlabel('Epsilon')
+    ax1.plot(eps*100, bids, 'b-', marker = 'o')
+    ax1.set_xlabel('Epsilon (%)')
     ax1.set_ylabel('Bid quantity', color='b')
     ax1.tick_params('y', colors='b')
     ax2 = ax1.twinx()
-    ax2.plot(eps, violations, 'r-')
+    ax2.plot(eps*100, violations, 'r-', marker = 'x')
     ax2.set_ylabel('Violations (%)', color='r')
     ax2.tick_params('y', colors='r')
     plt.show()
+
+if __name__ == '__main__':
+ 
+    # 2.1
+    #anc = ancillary_service('CVaR', 0.1)
+    anc = ancillary_service('MILP',  0.1)
+    #anc = ancillary_service('ALSO-X',  0.1)
+    
+    anc.run_model()
+    
+    # 2.2
+    out_of_sample_analysis(anc)
+    
+    
+    # 2.3
+    eps = np.arange(0, 0.21, 0.01)
+    p90_variations(eps)
     
