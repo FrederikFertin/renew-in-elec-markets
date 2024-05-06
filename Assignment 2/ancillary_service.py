@@ -24,7 +24,7 @@ class DataInit:
         load_profiles = []
         
         for _ in self.SCENARIOS:
-            load_profile = [random.randint(300, 500)]  # Start with an initial load
+            load_profile = [random.randint(300, 400)]  # Start with an initial load
             
             for _ in range(1, 60):
                 load = load_profile[-1] + random.randint(-25, 25)  # Randomly increase or decrease the load by up to 25
@@ -174,23 +174,28 @@ class ancillary_service(DataInit):
         
 
 def out_of_sample_analysis(anc):
-    c = anc.data.c_up
-    bid = np.repeat(c, 60)
-    fig, axs = plt.subplots(2)
+    c_up = anc.data.c_up
+    bid = np.repeat(c_up, 60)
+    fig, axs = plt.subplots(2, figsize = (8, 8), sharex=True)
+    fig.subplots_adjust(hspace=0.2, wspace=0.2)
+
     train = anc.train_scenarios
-    axs[0].plot(train, alpha = 0.2)
+    axs[0].plot(train, color = 'b', alpha = 0.1)
     axs[0].plot(bid, 'r')
-    axs[0].set_title('Training data')
+    axs[0].set_title('In-sample data')
+    axs[0].set_ylabel('Load (kW)')
     
     test = anc.test_scenarios
-    axs[1].plot(test, alpha = 0.2)
+    axs[1].plot(test, color  = 'b', alpha = 0.1)
     axs[1].plot(bid, 'r', label = 'Bid quantity')
-    axs[1].set_title('Test data')
+    axs[1].set_title('Out-of-sample data')
+    axs[1].set_ylabel('Load (kW)')
+    axs[1].set_xlabel('Time [min]')
     axs[1].legend()
     plt.show()
     
-    print("Violations of reserve capacity bid:", round(sum(sum(test < c))/(np.size(test))*100,2), " %")
-    print("Average shortfall:", -(test[test < c]-c).mean().round(2), " kW")
+    print("Violations of reserve capacity bid:", round(sum(sum(test < c_up))/(np.size(test))*100,2), " %")
+    print("Average shortfall:", -(test[test < c_up]-c_up).mean().round(2), " kW")
 
 
 def p90_variations(eps):
@@ -200,27 +205,27 @@ def p90_variations(eps):
     for e in eps:
         anc = ancillary_service('MILP',  e)
         anc.run_model()
-        bids.append(anc.data.c_up)
-        violations.append(sum(sum(anc.test_scenarios < anc.data.c_up))/(np.size(anc.test_scenarios))*100)
-        shortfalls.append(-(anc.test_scenarios[anc.test_scenarios < anc.data.c_up]-anc.data.c_up).mean())
+        c_up = anc.data.c_up
+        bids.append(c_up)
+        violations.append(sum(sum(anc.test_scenarios < c_up))/(np.size(anc.test_scenarios))*100)
+        shortfalls.append(-(anc.test_scenarios[anc.test_scenarios < c_up]-c_up).mean())
     
-    # Plot bids and violations as functino of epsilon in one plot with dual y-axis
-    fig, ax1 = plt.subplots()
-    ax1.plot(eps*100, bids, 'b-', marker = 'o')
-    ax1.set_xlabel('Epsilon (%)')
-    ax1.set_ylabel('Bid quantity', color='b')
-    ax1.tick_params('y', colors='b')
-    ax2 = ax1.twinx()
-    ax2.plot(eps*100, violations, 'r-', marker = 'x')
-    ax2.set_ylabel('Violations (%)', color='r')
-    ax2.tick_params('y', colors='r')
+    # Plot bids and violations as function of epsilon in one plot with dual y-axis
+    fig, axs = plt.subplots(3, figsize = (10, 10))
+    axs[0].plot(eps*100, bids, 'r', marker = 'o')
+    axs[0].set_ylabel('Bid quantity')
+    axs[1].plot(eps*100, violations, 'b', marker = 'o')
+    axs[1].set_ylabel('Violations (%)')
+    axs[2].plot(eps*100, shortfalls, 'g', marker = 'o')
+    axs[2].set_ylabel('Average shortfall (kW)')
+    axs[2].set_xlabel('Epsilon (%)')
     plt.show()
 
 if __name__ == '__main__':
  
     # 2.1
-    #anc = ancillary_service('CVaR', 0.1)
-    anc = ancillary_service('MILP',  0.1)
+    anc = ancillary_service('CVaR', 0.1)
+    #anc = ancillary_service('MILP',  0.1)
     #anc = ancillary_service('ALSO-X',  0.1)
     
     anc.run_model()
@@ -231,5 +236,5 @@ if __name__ == '__main__':
     
     # 2.3
     eps = np.arange(0, 0.21, 0.01)
-    p90_variations(eps)
+    #p90_variations(eps)
     
