@@ -139,7 +139,7 @@ class OfferingStrategy(DataInit):
                 self.constraints.eta_constraint = {w: self.model.addLConstr(
                     - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] +
                           (0.9 * self.imbalance_direction[t,w] + 1.2 * (1 - self.imbalance_direction[t,w])) *
-                          self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w] for t in self.TIMES) +
+                          self.lambda_DA[t, w] * self.variables.Delta[t, w] for t in self.TIMES) +
                           self.variables.zeta - self.variables.eta[w],
                     gb.GRB.LESS_EQUAL,
                     0, name='eta constraint') for w in self.SCENARIOS}
@@ -350,6 +350,7 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float):
     plt.show()
 
 if __name__ == '__main__':
+    """
     ##### ---------- Step: Test the model with two-price scheme ---------- #####
     # Step 1.3: Test the model with two-price scheme
     beta_values = np.linspace(0, 1, 21)
@@ -364,6 +365,7 @@ if __name__ == '__main__':
     # Calculate out-of-sample profits
     offering_strategy.calculate_oos_profits()
     offering_strategy.plot_oos_profits()
+    """
 
     ##### ---------- Step: Test the model with one-price scheme ---------- #####
     # Step 1.3: Test the model with two-price scheme
