@@ -27,7 +27,7 @@ class OfferingStrategy(DataInit):
 
     def __init__(self, price_scheme: str):
         super().__init__()
-        self.generate_scenarios(n_wind=20, n_price=20, n_balance=3, train_size=0.25, seed=42)
+        self.generate_scenarios(n_wind=20, n_price=20, n_balance=3, train_size=0.25, seed=42) # Are we ever splitting into train and test?
         self.data = expando()  # build data attributes
         self.variables = expando()  # build variable attributes
         self.constraints = expando()  # build constraint attributes
