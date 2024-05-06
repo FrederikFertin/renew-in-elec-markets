@@ -183,13 +183,13 @@ def out_of_sample_analysis(anc):
     axs[0].plot(train, color = 'b', alpha = 0.1)
     axs[0].plot(bid, 'r')
     axs[0].set_title('In-sample data')
-    axs[0].set_ylabel('Load (kW)')
+    axs[0].set_ylabel('Load [kW]')
     
     test = anc.test_scenarios
     axs[1].plot(test, color  = 'b', alpha = 0.1)
     axs[1].plot(bid, 'r', label = 'Bid quantity')
     axs[1].set_title('Out-of-sample data')
-    axs[1].set_ylabel('Load (kW)')
+    axs[1].set_ylabel('Load [kW]')
     axs[1].set_xlabel('Time [min]')
     axs[1].legend()
     plt.show()
@@ -210,15 +210,17 @@ def p90_variations(eps):
         violations.append(sum(sum(anc.test_scenarios < c_up))/(np.size(anc.test_scenarios))*100)
         shortfalls.append(-(anc.test_scenarios[anc.test_scenarios < c_up]-c_up).mean())
     
+    shortfalls = np.nan_to_num(np.array(shortfalls))
     # Plot bids and violations as function of epsilon in one plot with dual y-axis
-    fig, axs = plt.subplots(3, figsize = (10, 10))
+    fig, axs = plt.subplots(3, figsize = (10, 10), sharex=True)
     axs[0].plot(eps*100, bids, 'r', marker = 'o')
-    axs[0].set_ylabel('Bid quantity')
+    axs[0].set_xticks(eps*100)
+    axs[0].set_ylabel('Bid quantity [kW]')
     axs[1].plot(eps*100, violations, 'b', marker = 'o')
-    axs[1].set_ylabel('Violations (%)')
+    axs[1].set_ylabel('Violations [%]')
     axs[2].plot(eps*100, shortfalls, 'g', marker = 'o')
-    axs[2].set_ylabel('Average shortfall (kW)')
-    axs[2].set_xlabel('Epsilon (%)')
+    axs[2].set_ylabel('Average shortfall [kW]')
+    axs[2].set_xlabel('Epsilon [%]')
     plt.show()
 
 if __name__ == '__main__':
@@ -236,5 +238,5 @@ if __name__ == '__main__':
     
     # 2.3
     eps = np.arange(0, 0.21, 0.01)
-    #p90_variations(eps)
+    p90_variations(eps)
     
