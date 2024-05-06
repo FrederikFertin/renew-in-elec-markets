@@ -15,8 +15,6 @@ inputs:
 - imbalance_direction[t, w] (direction of imbalance at time t in scenario w)
 """
 
-
-
 class expando(object):
     '''
         A small class which can have attributes set
@@ -61,14 +59,15 @@ class OfferingStrategy(DataInit):
             (t, w): self.model.addVar(lb=-GRB.INFINITY, name='local imbalance {0}'.format(t))
             for t in self.TIMES for w in self.SCENARIOS
         }
-        self.variables.Delta_UP = {
-            (t, w): self.model.addVar(lb=0, name='up-regulation {0}'.format(t))
-            for t in self.TIMES for w in self.SCENARIOS
-        }
-        self.variables.Delta_DOWN = {
-            (t, w): self.model.addVar(lb=0, name='down-regulation {0}'.format(t))
-            for t in self.TIMES for w in self.SCENARIOS
-        }
+        if self.price_scheme == 'two_price':
+            self.variables.Delta_UP = {
+                (t, w): self.model.addVar(lb=0, name='up-regulation {0}'.format(t))
+                for t in self.TIMES for w in self.SCENARIOS
+            }
+            self.variables.Delta_DOWN = {
+                (t, w): self.model.addVar(lb=0, name='down-regulation {0}'.format(t))
+                for t in self.TIMES for w in self.SCENARIOS
+            }
         if self.risk_type == 'averse':
             self.variables.zeta = self.model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name='zeta')
             self.variables.eta = {
@@ -82,6 +81,13 @@ class OfferingStrategy(DataInit):
                                  for w in self.SCENARIOS for t in self.TIMES
         )
         if self.price_scheme == 'one_price':
+            BA_profits = gb.quicksum(
+                self.pi[w] * (0.9 * self.imbalance_direction[t,w] + 1.2 * (1 - self.imbalance_direction[t,w])) *
+                self.lambda_DA[t, w] * self.variables.Delta[t, w]
+                for w in self.SCENARIOS for t in self.TIMES
+            )
+            """ 
+            Old BA profits for one_price
             UP_profits = gb.quicksum(
                 self.pi[w] * 0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[t, w]
                 for w in self.SCENARIOS for t in self.TIMES
@@ -90,6 +96,7 @@ class OfferingStrategy(DataInit):
                 self.pi[w] * 1.2 * self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w]
                 for w in self.SCENARIOS for t in self.TIMES
             )
+            """
         elif self.price_scheme == 'two_price':
             UP_profits = gb.quicksum(
                 self.pi[w] * 0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_UP[t,w]
@@ -99,14 +106,17 @@ class OfferingStrategy(DataInit):
                 self.pi[w] * 1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_DOWN[t,w]
                 for w in self.SCENARIOS for t in self.TIMES
             )
+            BA_profits = UP_profits - DOWN_costs
         else:
             raise NotImplementedError
         if self.risk_type == 'averse':
-            CVar = self.variables.zeta - 1/(1-self.alpha) * gb.quicksum(self.pi[w] * self.variables.eta[w] for w in self.SCENARIOS)
+            CVar = self.variables.zeta - 1/(1-self.alpha) * gb.quicksum(
+                self.pi[w] * self.variables.eta[w] for w in self.SCENARIOS
+            )
         else:
             CVar = 0
 
-        objective = (1-self.beta) * (DA_profits + UP_profits - DOWN_costs) + self.beta * CVar
+        objective = (1-self.beta) * (DA_profits + BA_profits) + self.beta * CVar
         self.model.setObjective(objective, gb.GRB.MAXIMIZE)
 
     def _build_constraints(self):
@@ -116,34 +126,33 @@ class OfferingStrategy(DataInit):
             self.p_real[t,w] - self.variables.DA_dispatch[t],
             name='Imbalance constraint')
             for w in self.SCENARIOS} for t in self.TIMES}
-        self.constraints.regulation_constraints = {t: {w: self.model.addLConstr(
-            self.variables.Delta[t, w],
-            gb.GRB.EQUAL,
-            self.variables.Delta_UP[t,w] - self.variables.Delta_DOWN[t,w],
-            name='regulation constraint')
-            for w in self.SCENARIOS} for t in self.TIMES}
+        if self.price_scheme == 'two_price':
+            self.constraints.regulation_constraints = {t: {w: self.model.addLConstr(
+                self.variables.Delta[t, w],
+                gb.GRB.EQUAL,
+                self.variables.Delta_UP[t,w] - self.variables.Delta_DOWN[t,w],
+                name='regulation constraint')
+                for w in self.SCENARIOS} for t in self.TIMES}
         
         if self.risk_type == 'averse':
             if self.price_scheme == 'one_price':
                 self.constraints.eta_constraint = {w: self.model.addLConstr(
                     - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] +
-                                  0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[t, w] -
-                                  1.2 * self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w]
-                                  for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
+                          (0.9 * self.imbalance_direction[t,w] + 1.2 * (1 - self.imbalance_direction[t,w])) *
+                          self.lambda_DA[t, w] * self.variables.Delta[t, w] for t in self.TIMES) +
+                          self.variables.zeta - self.variables.eta[w],
                     gb.GRB.LESS_EQUAL,
-                    0, name = 'eta constraint') for w in self.SCENARIOS}
+                    0, name='eta constraint') for w in self.SCENARIOS}
             elif self.price_scheme == 'two_price':
                 self.constraints.eta_constraint = {w: self.model.addLConstr(
                     - gb.quicksum(self.lambda_DA[t,w] * self.variables.DA_dispatch[t] +
-                                  0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_UP[t,w] -
-                                  1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_DOWN[t,w]
-                                  for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
+                          0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_UP[t,w] -
+                          1.2**(1 - self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_DOWN[t,w]
+                          for t in self.TIMES) + self.variables.zeta - self.variables.eta[w],
                     gb.GRB.LESS_EQUAL,
-                    0, name = 'eta constraint') for w in self.SCENARIOS}
+                    0, name='eta constraint') for w in self.SCENARIOS}
             else:
                 raise NotImplementedError
-
-        
 
     def _build_model(self):
         # initialize optimization model
@@ -171,15 +180,16 @@ class OfferingStrategy(DataInit):
             self.variables.Delta[t,w].x for w in self.SCENARIOS} for t in self.TIMES
         }
 
-        # save up-regulation values
-        self.data.Delta_UP_values = {t: {w:
-            self.variables.Delta_UP[t, w].x for w in self.SCENARIOS} for t in self.TIMES
-        }
+        if self.price_scheme == 'two_price':
+            # save up-regulation values
+            self.data.Delta_UP_values = {t: {w:
+                self.variables.Delta_UP[t, w].x for w in self.SCENARIOS} for t in self.TIMES
+            }
 
-        # save down-regulation values
-        self.data.Delta_DOWN_values = {t: {w:
-            self.variables.Delta_DOWN[t, w].x for w in self.SCENARIOS} for t in self.TIMES
-        }
+            # save down-regulation values
+            self.data.Delta_DOWN_values = {t: {w:
+                self.variables.Delta_DOWN[t, w].x for w in self.SCENARIOS} for t in self.TIMES
+            }
 
         if self.risk_type == 'averse':
             # save zeta value
@@ -199,9 +209,9 @@ class OfferingStrategy(DataInit):
         }
         if self.price_scheme == 'one_price':
             self.results.BA_profits = {w:
-                sum(0.9 * self.lambda_DA[t, w] * self.data.Delta_UP_values[t][w]
-                - 1.2 * self.lambda_DA[t, w] * self.data.Delta_DOWN_values[t][w]
-                for t in self.TIMES)
+                sum((0.9 * self.imbalance_direction[t, w] + 1.2 * (1 - self.imbalance_direction[t, w])) *
+                    self.lambda_DA[t, w] * self.data.Delta_values[t][w] for t in self.TIMES
+                )
                 for w in self.SCENARIOS
             }
         elif self.price_scheme == 'two_price':
@@ -215,14 +225,16 @@ class OfferingStrategy(DataInit):
             raise NotImplementedError
         
         self.results.total_profits = {w:
-            self.results.DA_profits[w] + self.results.BA_profits[w]
-            for w in self.SCENARIOS
+            self.results.DA_profits[w] + self.results.BA_profits[w] for w in self.SCENARIOS
         }
 
-        self.results.expected_profit = sum(self.pi[w] * (self.results.DA_profits[w] +
-                                                         self.results.BA_profits[w]) for w in self.SCENARIOS)
+        self.results.expected_profit = sum(
+            self.pi[w] * (self.results.DA_profits[w] + self.results.BA_profits[w]) for w in self.SCENARIOS
+        )
         if self.risk_type == 'averse':
-            self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(self.pi[w] * self.data.eta_values[w] for w in self.SCENARIOS)
+            self.results.CVaR = self.data.zeta - 1/(1-self.alpha) * sum(
+                self.pi[w] * self.data.eta_values[w] for w in self.SCENARIOS
+            )
 
     def display_results(self):
         print()
@@ -242,9 +254,9 @@ class OfferingStrategy(DataInit):
             DA_profits = sum(
                 lambda_DA[t] * self.data.DA_dispatch_values[t] for t in self.TIMES)
             if self.price_scheme == 'one_price':
-                BA_profits = sum(0.9 * lambda_DA[t] * max(wind[t] - self.data.DA_dispatch_values[t], 0)
-                                 - 1.2 * lambda_DA[t] * max(self.data.DA_dispatch_values[t] - wind[t], 0)
-                                 for t in self.TIMES)
+                BA_profits = sum((0.9*imbalance[t] + 1.2*(1 - imbalance[t])) * lambda_DA[t] *
+                                (wind[t] - self.data.DA_dispatch_values[t])
+                                for t in self.TIMES)
             elif self.price_scheme == 'two_price':
                 BA_profits = sum(
                     0.9 ** (imbalance[t]) * lambda_DA[t] * max(wind[t] - self.data.DA_dispatch_values[t], 0)
@@ -296,7 +308,7 @@ def plot_train_size_vs_profit_diff(beta: float):
     profit_diffs = []
 
     for train_size in train_sizes:
-        offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha = 0.9, beta = beta, train_size=train_size)
+        offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta, train_size=train_size)
         offering_strategy.run_model()
         offering_strategy.calculate_results()
         offering_strategy.calculate_oos_profits()
@@ -338,23 +350,22 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float):
     plt.show()
 
 if __name__ == '__main__':
-    beta = 0.25
-    plot_train_size_vs_profit_diff_k_fold(beta=beta)
-
+    """
     ##### ---------- Step: Test the model with two-price scheme ---------- #####
     # Step 1.3: Test the model with two-price scheme
     beta_values = np.linspace(0, 1, 21)
-    # plot_beta_vs_cvar(beta_values, 'two_price')
+    plot_beta_vs_cvar(beta_values, 'two_price')
 
     ### For two-price scheme the optimal beta is decided to be 0.3
     beta = 0.25
-    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha = 0.9, beta=beta)
+    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha=0.9, beta=beta)
     offering_strategy.run_model()
     offering_strategy.calculate_results()
 
     # Calculate out-of-sample profits
     offering_strategy.calculate_oos_profits()
     offering_strategy.plot_oos_profits()
+    """
 
     ##### ---------- Step: Test the model with one-price scheme ---------- #####
     # Step 1.3: Test the model with two-price scheme
@@ -363,7 +374,7 @@ if __name__ == '__main__':
 
     ### For one-price scheme the optimal beta is decided to be 0.3
     beta = 0.4
-    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha = 0.9, beta = beta)
+    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta)
     offering_strategy.run_model()
     offering_strategy.calculate_results()
 
