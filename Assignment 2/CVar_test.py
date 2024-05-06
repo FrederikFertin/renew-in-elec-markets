@@ -3,6 +3,7 @@ from gurobipy import GRB
 import numpy as np
 from scenario import DataInit
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 """
 inputs: 
@@ -271,17 +272,30 @@ class OfferingStrategy(DataInit):
         print('Average out-of-sample profit: ', average_oos_profit)
         print('Average in-sample profit: ', self.results.expected_profit)
 
+    def plot_DA_dispatch(self, title: str):
+        plt.figure()
+        plt.grid(axis='y')
+        plt.bar(self.data.DA_dispatch_values.keys(), self.data.DA_dispatch_values.values())
+        plt.title(title)
+        plt.xlabel('hour')
+        plt.ylabel('power [MW]')
+        plt.show()
+
     def plot_is_profits(self):
+        plt.figure()
         in_sample_profits = list(self.results.total_profits.values())
-        plt.hist(in_sample_profits, bins=20, density=True)
+        sns.histplot(data=in_sample_profits, kde=True, binwidth=10000)
+        #plt.hist(in_sample_profits, bins=30)#, density=True)
         plt.xlabel('In-sample profits')
-        plt.ylabel('Frequency')
+        #plt.ylabel('Frequency')
         plt.show()
 
     def plot_oos_profits(self):
-        plt.hist(self.results.oos_profits, bins=20, density=True)
+        plt.figure()
+        #plt.hist(self.results.oos_profits, bins=30)#, density=True)
+        sns.histplot(data=self.results.oos_profits, kde=True, binwidth=10000)
         plt.xlabel('Out-of-sample profits')
-        plt.ylabel('Frequency')
+        #plt.ylabel('Frequency')
         plt.show()
 
 
@@ -303,12 +317,12 @@ def plot_beta_vs_cvar(beta_values: list, price_scheme: str):
     plt.ylabel('Expected profit')
     plt.show()
 
-def plot_train_size_vs_profit_diff(beta: float):
+def plot_train_size_vs_profit_diff(beta: float, price_scheme: str):
     train_sizes = np.linspace(100, 1100, 11).astype(int)
     profit_diffs = []
 
     for train_size in train_sizes:
-        offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta, train_size=train_size)
+        offering_strategy = OfferingStrategy(risk_type='averse', price_scheme=price_scheme, alpha=0.9, beta=beta, train_size=train_size)
         offering_strategy.run_model()
         offering_strategy.calculate_results()
         offering_strategy.calculate_oos_profits()
@@ -324,7 +338,7 @@ def plot_train_size_vs_profit_diff(beta: float):
     plt.ylabel("Absolute profit difference")
     plt.show()
 
-def plot_train_size_vs_profit_diff_k_fold(beta: float):
+def plot_train_size_vs_profit_diff_k_fold(beta: float, price_scheme: str):
     train_sizes = [100, 200, 300, 400, 600]
     profit_diffs = []
 
@@ -332,7 +346,7 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float):
         avg_is_profits = []
         avg_oos_profits = []
         for k in range(1200 // train_size):
-            offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta,
+            offering_strategy = OfferingStrategy(risk_type='averse', price_scheme=price_scheme, alpha=0.9, beta=beta,
                                                  train_size=train_size, k=k)
             offering_strategy.run_model()
             offering_strategy.calculate_results()
@@ -349,46 +363,75 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float):
     plt.ylabel("Absolute profit difference")
     plt.show()
 
+
 if __name__ == '__main__':
-    """
-    ##### ---------- Step: Test the model with two-price scheme ---------- #####
-    # Step 1.3: Test the model with two-price scheme
-    beta_values = np.linspace(0, 1, 21)
-    plot_beta_vs_cvar(beta_values, 'two_price')
+    """ Step 1.1: One-price """
+    # Create and run optimization problem
+    one_price_os = OfferingStrategy(risk_type='neutral', price_scheme='one_price')
+    one_price_os.run_model()
 
-    ### For two-price scheme the optimal beta is decided to be 0.3
-    beta = 0.25
-    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha=0.9, beta=beta)
-    offering_strategy.run_model()
-    offering_strategy.calculate_results()
+    # Calculate results
+    one_price_os.calculate_results()
 
-    # Calculate out-of-sample profits
-    offering_strategy.calculate_oos_profits()
-    offering_strategy.plot_oos_profits()
-    """
+    # Plot optimal day-ahead dispatch
+    one_price_os.plot_DA_dispatch(title='Optimal Day-Ahead Dispatch (one-price)')
 
-    ##### ---------- Step: Test the model with one-price scheme ---------- #####
-    # Step 1.3: Test the model with two-price scheme
-    beta_values = np.linspace(0, 1, 21)
-    plot_beta_vs_cvar(beta_values, 'one_price')
+    # Plot the in-sample profits as a histogram
+    one_price_os.plot_is_profits()
 
-    ### For one-price scheme the optimal beta is decided to be 0.3
-    beta = 0.4
-    offering_strategy = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta)
-    offering_strategy.run_model()
-    offering_strategy.calculate_results()
+    """ Step 1.2: Two-price """
+    # Create and run optimization problem
+    two_price_os = OfferingStrategy(risk_type='neutral', price_scheme='two_price')
+    two_price_os.run_model()
+
+    # Calculate results
+    two_price_os.calculate_results()
+
+    # Plot optimal day-ahead dispatch
+    two_price_os.plot_DA_dispatch(title='Optimal Day-Ahead Dispatch (two-price)')
+
+    # Plot the in-sample profits as a histogram
+    two_price_os.plot_is_profits()
 
     # calculate oos profits
-    offering_strategy.calculate_oos_profits()
+    two_price_os.calculate_oos_profits()
+    two_price_os.plot_oos_profits()
 
-    # Plot the in- and out-of-sample profits as histograms
-    offering_strategy.plot_oos_profits()
-    offering_strategy.plot_is_profits()
+    """ Step 1.3: Risk analysis"""
+    beta_values = np.linspace(0, 1, 21)
 
-    # Step 1.5: Cross validation
+    # One-price
+    plot_beta_vs_cvar(beta_values, 'one_price')
+
+    # For one-price scheme the optimal beta is decided to be 0.3
+    beta_one_price = 0.4
+    one_price_os_risk = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta_one_price)
+    one_price_os_risk.run_model()
+    one_price_os_risk.calculate_results()
+
+    # Two-price
+    plot_beta_vs_cvar(beta_values, 'two_price')
+
+    # For two-price scheme the optimal beta is decided to be 0.3
+    beta_two_price = 0.25
+    two_price_os_risk = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha=0.9, beta=beta_two_price)
+    two_price_os_risk.run_model()
+    two_price_os_risk.calculate_results()
+
+    """ Step 1.4: Out-of-sample simulation """
+    # calculate oos profits for one-price
+    one_price_os_risk.calculate_oos_profits()
+    one_price_os_risk.plot_oos_profits()
+
+    # calculate oos profits for two-price
+    two_price_os.calculate_oos_profits()
+    two_price_os.plot_oos_profits()
+
+    """ Step 1.5: Cross validation """
     # Evaluate difference between expected in- and out-of-sample profits
-    beta = 0.25
-    plot_train_size_vs_profit_diff(beta=beta)
+    plot_train_size_vs_profit_diff(beta=beta_one_price, price_scheme='one_price')
+    plot_train_size_vs_profit_diff(beta=beta_two_price, price_scheme='two_price')
 
     # Perform 6-fold cross validation
-    plot_train_size_vs_profit_diff_k_fold(beta=beta)
+    plot_train_size_vs_profit_diff_k_fold(beta=beta_one_price, price_scheme='one_price')
+    plot_train_size_vs_profit_diff_k_fold(beta=beta_two_price, price_scheme='two_price')
