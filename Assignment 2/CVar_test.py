@@ -453,11 +453,13 @@ if __name__ == '__main__':
     """ Step 1.4: Out-of-sample simulation """
     # calculate oos profits for one-price
     one_price_os_risk.calculate_oos_profits()
+    sns.boxplot(one_price_os_risk.results.oos_BA_profits)
     one_price_os_risk.plot_oos_profits(title='Out-of-Sample Profit Distribution (two-price)')
     one_price_os_risk.plot_is_profits(title='In-Sample Profit Distribution (one-price)')
 
     # calculate oos profits for two-price
     two_price_os_risk.calculate_oos_profits()
+    sns.boxplot(two_price_os_risk.results.oos_BA_profits)
     two_price_os_risk.plot_oos_profits(title='Out-of-Sample Profit Distribution (two-price)')
     two_price_os_risk.plot_is_profits(title='In-Sample Profit Distribution (two-price)')
 
