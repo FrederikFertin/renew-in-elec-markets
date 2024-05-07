@@ -2,6 +2,7 @@ import gurobipy as gb
 import matplotlib.pyplot as plt
 import random
 import numpy as np
+from time import time
 from typing import Union
 
 # TODO
@@ -90,10 +91,10 @@ class ancillary_service(DataInit):
                 (t, w): self.model.addVar(lb=0, ub = 1, name='violation {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
             }
         elif self.solution_technique == 'CVaR':
-            self.variables.beta = self.model.addVar(ub=0, name='Weight')
+            self.variables.beta = self.model.addVar(lb = -gb.GRB.INFINITY, ub=0, name='Weight')
 
             self.variables.zeta = {
-                (t, w): self.model.addVar(lb=0, name='zeta {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
+                (t, w): self.model.addVar(lb=-gb.GRB.INFINITY, name='zeta {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
             }
 
     def _build_objective_function(self):
@@ -230,13 +231,17 @@ if __name__ == '__main__':
     #anc = ancillary_service('MILP',  0.1)
     #anc = ancillary_service('ALSO-X',  0.1)
     
+
+    start = time()
     anc.run_model()
-    
+    print("Running time:", time()-start)
+
+    print(sum(sum(anc.train_scenarios < anc.data.c_up))/(np.size(anc.train_scenarios))*100)
     # 2.2
-    out_of_sample_analysis(anc)
+    #out_of_sample_analysis(anc)
     
     
     # 2.3
-    eps = np.arange(0, 0.21, 0.01)
-    p90_variations(eps)
+    #eps = np.arange(0, 0.21, 0.01)
+    #p90_variations(eps)
     
