@@ -396,8 +396,23 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float, price_scheme: str):
     plt.ylabel("Absolute profit difference [€]")
     plt.show()
 
+def profit_distribution_vs_beta(beta):
+    plt.figure()
+    for b in beta:
+        offstrat = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha=0.9, beta=b)
+        offstrat.run_model()
+        offstrat.calculate_results()
+        offstrat.calculate_oos_profits()
+        sns.kdeplot(data=offstrat.results.oos_profits,  label=str(b))
+    plt.xlim(0, 460000)
+    plt.xlabel('Out-of-sample profits [€]')
+    plt.title("Out-of-Sample Profit Distributions (two-price)")
+    plt.legend(title="Beta values")
+    plt.show()
 
 if __name__ == '__main__':
+      
+    
     """ Step 1.1: One-price """
     # Create and run optimization problem
     one_price_os = OfferingStrategy(risk_type='neutral', price_scheme='one_price')
@@ -449,6 +464,9 @@ if __name__ == '__main__':
     two_price_os_risk = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha=0.9, beta=beta_two_price)
     two_price_os_risk.run_model()
     two_price_os_risk.calculate_results()
+    
+    # Plot profit distribution for different beta values
+    profit_distribution_vs_beta(np.linspace(0, 1, 5))
 
     """ Step 1.4: Out-of-sample simulation """
     # calculate oos profits for one-price
