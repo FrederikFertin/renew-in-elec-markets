@@ -88,17 +88,6 @@ class OfferingStrategy(DataInit):
                 self.lambda_DA[t, w] * self.variables.Delta[t, w]
                 for w in self.SCENARIOS for t in self.TIMES
             )
-            """ 
-            Old BA profits for one_price
-            UP_profits = gb.quicksum(
-                self.pi[w] * 0.9 * self.lambda_DA[t, w] * self.variables.Delta_UP[t, w]
-                for w in self.SCENARIOS for t in self.TIMES
-            )
-            DOWN_costs = gb.quicksum(
-                self.pi[w] * 1.2 * self.lambda_DA[t, w] * self.variables.Delta_DOWN[t, w]
-                for w in self.SCENARIOS for t in self.TIMES
-            )
-            """
         elif self.price_scheme == 'two_price':
             UP_profits = gb.quicksum(
                 self.pi[w] * 0.9**(self.imbalance_direction[t,w]) * self.lambda_DA[t,w] * self.variables.Delta_UP[t,w]
@@ -324,7 +313,7 @@ def plot_profits_comparison(one_price_os: OfferingStrategy, two_price_os: Offeri
     })
     plt.figure()
     plt.title('Comparison of profits for one-price and two-price')
-    ax = sns.barplot(pd.DataFrame(df_profits), x="Market", y="Profits [€]", hue="price scheme")
+    ax = sns.barplot(pd.DataFrame(df_profits), x="Market", y="Profits [€]", hue="price scheme", palette=['tab:blue','skyblue'])
     ax.bar_label(ax.containers[0], fontsize=10)
     ax.bar_label(ax.containers[1], fontsize=10)
     plt.show()
@@ -366,7 +355,8 @@ def plot_train_size_vs_profit_diff(beta: float, price_scheme: str):
         profit_diffs.append(abs(avg_is_profits - avg_oos_profits))
 
     plt.title("Train size vs profit differences")
-    plt.plot(train_sizes, profit_diffs)
+    plt.plot(train_sizes, profit_diffs, marker='o')
+    plt.grid(True)
     plt.xlabel("Train size")
     plt.ylabel("Absolute profit difference [€]")
     plt.show()
@@ -391,7 +381,8 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float, price_scheme: str):
         profit_diffs.append(abs(np.mean(avg_is_profits) - np.mean(avg_oos_profits)))
 
     plt.title("Train size vs profit differences using k-fold cross validation")
-    plt.plot(train_size, profit_diffs)
+    plt.plot(train_sizes, profit_diffs, marker='o')
+    plt.grid(True)
     plt.xlabel("Train size")
     plt.ylabel("Absolute profit difference [€]")
     plt.show()
@@ -453,13 +444,11 @@ if __name__ == '__main__':
     """ Step 1.4: Out-of-sample simulation """
     # calculate oos profits for one-price
     one_price_os_risk.calculate_oos_profits()
-    sns.boxplot(one_price_os_risk.results.oos_BA_profits)
     one_price_os_risk.plot_oos_profits(title='Out-of-Sample Profit Distribution (two-price)')
     one_price_os_risk.plot_is_profits(title='In-Sample Profit Distribution (one-price)')
 
     # calculate oos profits for two-price
     two_price_os_risk.calculate_oos_profits()
-    sns.boxplot(two_price_os_risk.results.oos_BA_profits)
     two_price_os_risk.plot_oos_profits(title='Out-of-Sample Profit Distribution (two-price)')
     two_price_os_risk.plot_is_profits(title='In-Sample Profit Distribution (two-price)')
 
