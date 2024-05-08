@@ -339,6 +339,21 @@ def plot_beta_vs_cvar(beta_values: list, price_scheme: str):
     plt.title('CVaR vs. Expected Profit (' + price_scheme + ')')
     plt.show()
 
+def profit_distribution_vs_beta(beta: np.ndarray, price_scheme: str):
+    plt.figure()
+    for b in beta:
+        offstrat = OfferingStrategy(risk_type='averse', price_scheme=price_scheme, alpha=0.9, beta=b)
+        offstrat.run_model()
+        offstrat.calculate_results()
+        sns.kdeplot(data=list(offstrat.results.total_profits.values()), label=str(b))
+        #offstrat.calculate_oos_profits()
+        #sns.kdeplot(data=offstrat.results.oos_profits,  label=str(b))
+    plt.xlim(0, 460000)
+    plt.xlabel('Out-of-sample profits [€]')
+    plt.title("In-Sample Profit Distributions for different " + r'$\beta$' + "-values (" + price_scheme + ')')
+    plt.legend(title="Beta values")
+    plt.show()
+
 def plot_train_size_vs_profit_diff(beta: float, price_scheme: str):
     train_sizes = np.linspace(100, 1100, 11).astype(int)
     profit_diffs = []
@@ -378,7 +393,7 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float, price_scheme: str):
             avg_is_profits.append(np.mean(list(offering_strategy.results.total_profits.values())))
             avg_oos_profits.append(np.mean(offering_strategy.results.oos_profits))
 
-        profit_diffs.append(abs(np.mean(avg_is_profits) - np.mean(avg_oos_profits)))
+        profit_diffs.append(np.mean(abs(np.array(avg_is_profits) - np.array(avg_oos_profits))))
 
     plt.title("Train size vs profit differences using k-fold cross validation")
     plt.plot(train_sizes, profit_diffs, marker='o')
@@ -387,23 +402,9 @@ def plot_train_size_vs_profit_diff_k_fold(beta: float, price_scheme: str):
     plt.ylabel("Absolute profit difference [€]")
     plt.show()
 
-def profit_distribution_vs_beta(beta):
-    plt.figure()
-    for b in beta:
-        offstrat = OfferingStrategy(risk_type='averse', price_scheme='two_price', alpha=0.9, beta=b)
-        offstrat.run_model()
-        offstrat.calculate_results()
-        offstrat.calculate_oos_profits()
-        sns.kdeplot(data=offstrat.results.oos_profits,  label=str(b))
-    plt.xlim(0, 460000)
-    plt.xlabel('Out-of-sample profits [€]')
-    plt.title("Out-of-Sample Profit Distributions (two-price)")
-    plt.legend(title="Beta values")
-    plt.show()
 
 if __name__ == '__main__':
-      
-    
+
     """ Step 1.1: One-price """
     # Create and run optimization problem
     one_price_os = OfferingStrategy(risk_type='neutral', price_scheme='one_price')
@@ -457,7 +458,8 @@ if __name__ == '__main__':
     two_price_os_risk.calculate_results()
     
     # Plot profit distribution for different beta values
-    profit_distribution_vs_beta(np.linspace(0, 1, 5))
+    profit_distribution_vs_beta(np.linspace(0, 1, 5), 'one_price')
+    profit_distribution_vs_beta(np.linspace(0, 1, 5), 'two_price')
 
     """ Step 1.4: Out-of-sample simulation """
     # calculate oos profits for one-price
