@@ -5,9 +5,6 @@ import numpy as np
 from time import time
 from typing import Union
 
-# TODO
-    # - Fix ALSO-X, or remove it
-
 
 random.seed(42)
 np.random.seed(42)
@@ -74,7 +71,7 @@ class ancillary_service(DataInit):
         self.variables = expando()  # build variable attributes
         self.constraints = expando()  # build constraint attributes
         self.results = expando()  # build results attributes
-        self.solution_technique = solution_technique # MILP, ALSO-X, CVaR
+        self.solution_technique = solution_technique # MILP or CVaR
         self.eps = eps # Allowed violations (%)
         self.q = self.eps * len(self.SCENARIOS) * len(self.TIMES) # Allowed violations (abs)
         self._build_model()  # build gurobi model
@@ -90,10 +87,6 @@ class ancillary_service(DataInit):
             self.variables.y = {
                 (t, w): self.model.addVar(vtype=gb.GRB.BINARY, name='violation {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
             }
-        elif self.solution_technique == 'ALSO-X':
-            self.variables.y = {
-                (t, w): self.model.addVar(lb=0, ub = 1, name='violation {0}'.format(t)) for t in self.TIMES for w in self.SCENARIOS
-            }
         elif self.solution_technique == 'CVaR':
             self.variables.beta = self.model.addVar(lb = -gb.GRB.INFINITY, ub=0, name='Weight')
 
@@ -106,7 +99,7 @@ class ancillary_service(DataInit):
 
 
     def _build_constraints(self):
-        if (self.solution_technique == 'MILP' or self.solution_technique == 'ALSO-X'):
+        if (self.solution_technique == 'MILP'):
             self.constraints.violation_constraints = {t: {w: self.model.addConstr(
                 self.variables.c_up - self.train_scenarios[t,w] <= self.variables.y[t, w] * 300, name='violation constraint {0}'.format(t))  # Check big M.
                 for w in self.SCENARIOS} for t in self.TIMES
@@ -127,20 +120,6 @@ class ancillary_service(DataInit):
             }
         else:
             raise ValueError('Invalid solution technique')
-    
-    def _also_X(self):
-        q_underline = 0
-        q_overline = self.eps * len(self.SCENARIOS)**2
-        while q_overline - q_underline > 10E-5:
-            self.q = (q_underline + q_overline) / 2
-            self.model.optimize()
-            self._save_data()
-            self.P = sum((self.data.y[t, w] < 10E-6) for t in self.TIMES for w in self.SCENARIOS)/ (len(self.TIMES) * len(self.SCENARIOS))
-            if self.P >= (1-self.eps):
-                q_underline = self.q
-            else:
-                q_overline = self.q
-            self._build_model()
             
     
     def _build_model(self):
@@ -158,7 +137,7 @@ class ancillary_service(DataInit):
     def _save_data(self):
         self.data.c_up = self.variables.c_up.X
         
-        if (self.solution_technique == 'MILP' or self.solution_technique == 'ALSO-X'):
+        if (self.solution_technique == 'MILP'):
             self.data.y = {(t, w): self.variables.y[t, w].X for t in self.TIMES for w in self.SCENARIOS}
         elif self.solution_technique == 'CVaR':
             self.data.beta = self.variables.beta.X
@@ -172,8 +151,6 @@ class ancillary_service(DataInit):
         
     def run_model(self):
         self.time = time()
-        if self.solution_technique == 'ALSO-X':
-            self._also_X()
         self.model.optimize()
         self._save_data()
 
@@ -250,13 +227,12 @@ if __name__ == '__main__':
     # 2.1
     #anc = ancillary_service('CVaR', 0.1)
     anc = ancillary_service('MILP',  0.1)
-    #anc = ancillary_service('ALSO-X',  0.1)
 
     anc.run_model()
     anc.display_results()
 
     # 2.2
-    #plot_profiles(anc)
+    plot_profiles(anc)
     
     
     # 2.3
