@@ -297,6 +297,18 @@ class OfferingStrategy(DataInit):
         #plt.ylabel('Frequency')
         plt.show()
 
+    def plot_is_vs_oos_distribution(self):
+        plt.figure()
+        sns.kdeplot(data=list(self.results.total_profits.values()), label='In-sample')
+        sns.kdeplot(data=self.results.oos_profits, color='skyblue', label='Out-of-sample')
+        plt.xlim(0, 460000)
+        plt.xlabel('Profits [€]')
+        plt.ylabel('Density')
+        plt.title("In- and Out-of-Sample Profit Distributions (" + self.price_scheme + ')')
+        plt.legend()
+        plt.show()
+
+
 def plot_profits_comparison(one_price_os: OfferingStrategy, two_price_os: OfferingStrategy):
     profits = [
         np.mean(list(one_price_os.results.DA_profits.values())),
@@ -321,12 +333,14 @@ def plot_profits_comparison(one_price_os: OfferingStrategy, two_price_os: Offeri
 def plot_beta_vs_cvar(beta_values: list, price_scheme: str):
     expected_profits = []
     CVaRs = []
+    offers = []
     for beta in beta_values:
         offering_strategy = OfferingStrategy(risk_type='averse', price_scheme=price_scheme, alpha=0.9, beta=beta)
         offering_strategy.run_model()
         offering_strategy.calculate_results()
         expected_profits.append(offering_strategy.results.expected_profit)
         CVaRs.append(offering_strategy.results.CVaR)
+        offers.append(offering_strategy.data.DA_dispatch_values)
 
     # plot results with both lines and points
     plt.figure()
@@ -339,6 +353,21 @@ def plot_beta_vs_cvar(beta_values: list, price_scheme: str):
     plt.title('CVaR vs. Expected Profit (' + price_scheme + ')')
     plt.show()
 
+    # Plot the optimal DA offers for each beta
+    indices = [0, 5, 10, 20]
+    df = pd.DataFrame()
+    for ix in indices:
+        df[str(beta_values[ix])] = offers[ix]
+
+    df.plot.bar(color=sns.dark_palette("#69d", reverse=True), figsize=(15, 4), width=0.8)
+    plt.xlabel("Hour")
+    plt.ylabel("Offered Power [MW]")
+    plt.title(f"Day-ahead offering strategy ({price_scheme})")
+    plt.legend(title="Beta", loc='upper center', bbox_to_anchor=(0.5, -0.2),
+               fancybox=True, ncol=4)
+    plt.tight_layout()
+    plt.show()  # Plot the optimal bids for each beta
+
 def profit_distribution_vs_beta(beta: np.ndarray, price_scheme: str):
     plt.figure()
     for b in beta:
@@ -349,8 +378,8 @@ def profit_distribution_vs_beta(beta: np.ndarray, price_scheme: str):
         #offstrat.calculate_oos_profits()
         #sns.kdeplot(data=offstrat.results.oos_profits,  label=str(b))
     plt.xlim(0, 460000)
-    plt.xlabel('Out-of-sample profits [€]')
-    plt.title("In-Sample Profit Distributions for different " + r'$\beta$' + "-values (" + price_scheme + ')')
+    plt.xlabel('In-sample profits [€]')
+    plt.title("In-Sample Profit Distributions for Different " + r'$\beta$' + "-values (" + price_scheme + ')')
     plt.legend(title="Beta values")
     plt.show()
 
@@ -440,16 +469,17 @@ if __name__ == '__main__':
     beta_values = np.linspace(0, 1, 21)
 
     # One-price
-    #plot_beta_vs_cvar(beta_values, 'one_price')
+    plot_beta_vs_cvar(beta_values, 'one_price')
 
     # For one-price scheme the optimal beta is decided to be 0.25
     beta_one_price = 0.25
     one_price_os_risk = OfferingStrategy(risk_type='averse', price_scheme='one_price', alpha=0.9, beta=beta_one_price)
     one_price_os_risk.run_model()
     one_price_os_risk.calculate_results()
+    one_price_os_risk.plot_DA_dispatch(title='Optimal Day-Ahead Dispatch (one-price)')
 
     # Two-price
-    #plot_beta_vs_cvar(beta_values, 'two_price')
+    plot_beta_vs_cvar(beta_values, 'two_price')
 
     # For two-price scheme the optimal beta is decided to be 0.25
     beta_two_price = 0.25
@@ -464,13 +494,15 @@ if __name__ == '__main__':
     """ Step 1.4: Out-of-sample simulation """
     # calculate oos profits for one-price
     one_price_os_risk.calculate_oos_profits()
-    one_price_os_risk.plot_oos_profits(title='Out-of-Sample Profit Distribution (two-price)')
+    one_price_os_risk.plot_oos_profits(title='Out-of-Sample Profit Distribution (one-price)')
     one_price_os_risk.plot_is_profits(title='In-Sample Profit Distribution (one-price)')
+    one_price_os_risk.plot_is_vs_oos_distribution()
 
     # calculate oos profits for two-price
     two_price_os_risk.calculate_oos_profits()
     two_price_os_risk.plot_oos_profits(title='Out-of-Sample Profit Distribution (two-price)')
     two_price_os_risk.plot_is_profits(title='In-Sample Profit Distribution (two-price)')
+    two_price_os_risk.plot_is_vs_oos_distribution()
 
     """ Step 1.5: Cross validation """
     # Evaluate difference between expected in- and out-of-sample profits
