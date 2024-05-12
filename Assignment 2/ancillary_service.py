@@ -213,15 +213,17 @@ if __name__ == '__main__':
     np.random.seed(42)
 
     # 2.1
-    #anc = ancillary_service('CVaR', 0.1)
-    anc = ancillary_service('MILP',  0.1)
+    anc_cvar = ancillary_service('CVaR', 0.1)
+    anc_cvar.run_model()
+    anc_cvar.display_results()
 
-    anc.run_model()
-    anc.display_results()
+    anc_milp = ancillary_service('MILP',  0.1)
+    anc_milp.run_model()
+    anc_milp.display_results()
 
     # 2.2
-    plot_profiles(anc)
-    
+    plot_profiles(anc_cvar)
+    plot_profiles(anc_milp)
     
     # 2.3
     eps = np.arange(0, 0.21, 0.01)
