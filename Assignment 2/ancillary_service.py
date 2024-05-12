@@ -5,11 +5,6 @@ import numpy as np
 from time import time
 from typing import Union
 
-
-random.seed(42)
-np.random.seed(42)
-
-
 class DataInit:
     def __init__(self):
        
@@ -75,9 +70,6 @@ class ancillary_service(DataInit):
         self.eps = eps # Allowed violations (%)
         self.q = self.eps * len(self.SCENARIOS) * len(self.TIMES) # Allowed violations (abs)
         self._build_model()  # build gurobi model
-        
-    
-
 
     def _build_variables(self):
         # initialize variables
@@ -96,7 +88,6 @@ class ancillary_service(DataInit):
 
     def _build_objective_function(self):
         self.model.setObjective(self.variables.c_up, gb.GRB.MAXIMIZE)
-
 
     def _build_constraints(self):
         if (self.solution_technique == 'MILP'):
@@ -120,8 +111,7 @@ class ancillary_service(DataInit):
             }
         else:
             raise ValueError('Invalid solution technique')
-            
-    
+
     def _build_model(self):
         # initialize optimization model
         self.model = gb.Model(name='Ancillary Service')
@@ -147,14 +137,12 @@ class ancillary_service(DataInit):
         self.data.test_violations = sum(sum(self.test_scenarios < self.data.c_up))/(np.size(self.test_scenarios))
         self.data.average_shortfall = -(self.test_scenarios[self.test_scenarios < self.data.c_up]-self.data.c_up).mean()
         self.data.running_time = time() - self.time
-        
-        
+
     def run_model(self):
         self.time = time()
         self.model.optimize()
         self._save_data()
 
-        
     def display_results(self):
         print()
         print("-------------------   RESULTS  -------------------")
@@ -191,9 +179,6 @@ def plot_profiles(anc):
     axs[1].set_xlabel('Time [min]')
     axs[1].legend()
     plt.show()
-    
-    
-
 
 def p90_variations(eps):
     # Calculate bids, violations and shortfalls for different epsilon values
@@ -222,8 +207,11 @@ def p90_variations(eps):
     axs[2].set_xlabel('Epsilon [%]')
     plt.show()
 
+
 if __name__ == '__main__':
- 
+    random.seed(42)
+    np.random.seed(42)
+
     # 2.1
     #anc = ancillary_service('CVaR', 0.1)
     anc = ancillary_service('MILP',  0.1)
