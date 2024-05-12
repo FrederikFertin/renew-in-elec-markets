@@ -57,7 +57,7 @@ class expando(object):
     '''
     pass
 
-class ancillary_service(DataInit):
+class AncillaryService(DataInit):
 
     def __init__(self, solution_technique: str, eps : float):
         super().__init__()
@@ -186,7 +186,7 @@ def p90_variations(eps):
     violations = []
     shortfalls = []
     for e in eps:
-        anc = ancillary_service('MILP',  e)
+        anc = AncillaryService('MILP',  e)
         anc.run_model()
         c_up = anc.data.c_up
         bids.append(c_up)
@@ -213,11 +213,11 @@ if __name__ == '__main__':
     np.random.seed(42)
 
     # 2.1
-    anc_cvar = ancillary_service('CVaR', 0.1)
+    anc_cvar = AncillaryService('CVaR', 0.1)
     anc_cvar.run_model()
     anc_cvar.display_results()
 
-    anc_milp = ancillary_service('MILP',  0.1)
+    anc_milp = AncillaryService('MILP',  0.1)
     anc_milp.run_model()
     anc_milp.display_results()
 
